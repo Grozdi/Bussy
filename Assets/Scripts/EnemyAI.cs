@@ -3,6 +3,7 @@ using UnityEngine;
 /// <summary>
 /// Simple enemy AI with three states:
 /// Idle -> Chase -> Attack
+/// Includes basic attack behavior with cooldown.
 /// </summary>
 public class EnemyAI : MonoBehaviour
 {
@@ -28,7 +29,16 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Distance at which the enemy attacks and stops moving.")]
     [SerializeField] private float attackRange = 2f;
 
+    [Header("Attack")]
+    [Tooltip("Damage dealt to the player per attack.")]
+    [SerializeField] private float attackDamage = 10f;
+
+    [Tooltip("Time in seconds between attacks.")]
+    [SerializeField] private float attackCooldown = 1f;
+
     private EnemyState currentState = EnemyState.Idle;
+    private float nextAttackTime;
+    private PlayerHealth playerHealth;
 
     private void Awake()
     {
@@ -41,6 +51,8 @@ public class EnemyAI : MonoBehaviour
                 player = playerObject.transform;
             }
         }
+
+        CachePlayerHealth();
     }
 
     private void Update()
@@ -48,6 +60,12 @@ public class EnemyAI : MonoBehaviour
         if (player == null)
         {
             return;
+        }
+
+        // Keep robust if player object changes at runtime.
+        if (playerHealth == null)
+        {
+            CachePlayerHealth();
         }
 
         float distanceToPlayer = Vector3.Distance(transform.position, player.position);
@@ -114,7 +132,7 @@ public class EnemyAI : MonoBehaviour
         // Stop moving while attacking.
         // (No position updates in attack state.)
 
-        // Optional: keep facing player while in attack range.
+        // Keep facing player while in attack range.
         Vector3 lookDirection = (player.position - transform.position);
         lookDirection.y = 0f;
 
@@ -123,6 +141,30 @@ public class EnemyAI : MonoBehaviour
             transform.forward = lookDirection.normalized;
         }
 
-        Debug.Log($"{gameObject.name} is attacking player at distance {distanceToPlayer:F2}");
+        // Prevent attack spamming with cooldown.
+        if (Time.time < nextAttackTime)
+        {
+            return;
+        }
+
+        if (playerHealth == null)
+        {
+            Debug.LogWarning($"{gameObject.name} cannot attack: PlayerHealth not found.");
+            return;
+        }
+
+        // Deal damage and set next attack time.
+        playerHealth.TakeDamage(attackDamage);
+        nextAttackTime = Time.time + attackCooldown;
+
+        Debug.Log($"{gameObject.name} attacked player for {attackDamage} damage at distance {distanceToPlayer:F2}");
+    }
+
+    private void CachePlayerHealth()
+    {
+        if (player != null)
+        {
+            playerHealth = player.GetComponent<PlayerHealth>();
+        }
     }
 }
