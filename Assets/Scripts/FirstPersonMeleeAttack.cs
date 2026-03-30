@@ -7,8 +7,8 @@ using UnityEngine;
 public class FirstPersonMeleeAttack : MonoBehaviour
 {
     [Header("References")]
-    [Tooltip("Camera used to fire the melee raycast. If not assigned, Camera.main is used.")]
-    [SerializeField] private Camera playerCamera;
+    [Tooltip("Transform of the player's camera. If not assigned, Camera.main.transform is used when available.")]
+    [SerializeField] private Transform playerCamera;
 
     [Header("Attack Settings")]
     [Tooltip("Maximum distance the melee attack can reach.")]
@@ -20,15 +20,15 @@ public class FirstPersonMeleeAttack : MonoBehaviour
     [Tooltip("Cooldown time in seconds between attacks.")]
     [SerializeField] private float attackCooldown = 0.5f;
 
+    [Tooltip("Color of the debug ray shown in the Scene view.")]
+    [SerializeField] private Color debugRayColor = Color.red;
+
     // Time when the next attack is allowed.
     private float nextAttackTime;
 
     private void Awake()
     {
-        if (playerCamera == null)
-        {
-            playerCamera = Camera.main;
-        }
+        AssignCameraIfMissing();
     }
 
     private void Update()
@@ -52,19 +52,24 @@ public class FirstPersonMeleeAttack : MonoBehaviour
             return;
         }
 
-        // Set next allowed attack time immediately.
-        nextAttackTime = Time.time + attackCooldown;
-
-        if (playerCamera == null)
+        // Keep script robust if camera gets lost/unassigned at runtime.
+        if (!AssignCameraIfMissing())
         {
-            Debug.LogWarning("Attack failed: no player camera assigned.");
+            Debug.LogWarning("Attack failed: player camera Transform is not assigned.");
             return;
         }
 
-        Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
+        // Set next allowed attack time once we know we can attempt an attack.
+        nextAttackTime = Time.time + attackCooldown;
 
-        // Raycast forward from camera.
-        if (Physics.Raycast(ray, out RaycastHit hit, attackRange))
+        // Ensure the ray starts from camera position and goes in camera forward direction.
+        Vector3 rayOrigin = playerCamera.position;
+        Vector3 rayDirection = playerCamera.forward;
+
+        // Visualize the attack ray in the Scene view.
+        Debug.DrawRay(rayOrigin, rayDirection * attackRange, debugRayColor, 0.15f);
+
+        if (Physics.Raycast(rayOrigin, rayDirection, out RaycastHit hit, attackRange))
         {
             // Check if the hit object has EnemyHealth.
             EnemyHealth enemyHealth = hit.collider.GetComponent<EnemyHealth>();
@@ -83,5 +88,26 @@ public class FirstPersonMeleeAttack : MonoBehaviour
         {
             Debug.Log("Melee miss: no target in range.");
         }
+    }
+
+    /// <summary>
+    /// Assigns camera transform from Camera.main when missing.
+    /// Returns true when a valid transform is available.
+    /// </summary>
+    private bool AssignCameraIfMissing()
+    {
+        if (playerCamera != null)
+        {
+            return true;
+        }
+
+        Camera mainCamera = Camera.main;
+        if (mainCamera == null)
+        {
+            return false;
+        }
+
+        playerCamera = mainCamera.transform;
+        return true;
     }
 }
