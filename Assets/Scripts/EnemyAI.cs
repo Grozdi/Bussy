@@ -29,6 +29,9 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Distance at which the enemy attacks and stops moving.")]
     [SerializeField] private float attackRange = 2f;
 
+    [Tooltip("Extra distance to leave Attack state, helping smooth transitions.")]
+    [SerializeField] private float attackExitBuffer = 0.35f;
+
     [Header("Attack")]
     [Tooltip("Damage dealt to the player per attack.")]
     [SerializeField] private float attackDamage = 10f;
@@ -42,7 +45,30 @@ public class EnemyAI : MonoBehaviour
 
     private void Awake()
     {
-        // Optional fallback to common player tag.
+        ResolvePlayerReferences();
+    }
+
+    private void Update()
+    {
+        // Keep references valid and avoid null-reference errors.
+        if (!ResolvePlayerReferences())
+        {
+            SetState(EnemyState.Idle);
+            return;
+        }
+
+        float sqrDistanceToPlayer = (player.position - transform.position).sqrMagnitude;
+
+        UpdateState(sqrDistanceToPlayer);
+        RunState(sqrDistanceToPlayer);
+    }
+
+    /// <summary>
+    /// Resolves player Transform and PlayerHealth references.
+    /// Returns true when both references are available.
+    /// </summary>
+    private bool ResolvePlayerReferences()
+    {
         if (player == null)
         {
             GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
@@ -52,51 +78,66 @@ public class EnemyAI : MonoBehaviour
             }
         }
 
-        CachePlayerHealth();
-    }
-
-    private void Update()
-    {
         if (player == null)
         {
-            return;
+            playerHealth = null;
+            return false;
         }
 
-        // Keep robust if player object changes at runtime.
         if (playerHealth == null)
         {
-            CachePlayerHealth();
+            playerHealth = player.GetComponent<PlayerHealth>();
         }
 
-        float distanceToPlayer = Vector3.Distance(transform.position, player.position);
-
-        UpdateState(distanceToPlayer);
-        RunState(distanceToPlayer);
+        return playerHealth != null;
     }
 
     /// <summary>
     /// Updates the current AI state based on distance to player.
+    /// Uses a small buffer to avoid rapid state flipping around attack range.
     /// </summary>
-    private void UpdateState(float distanceToPlayer)
+    private void UpdateState(float sqrDistanceToPlayer)
     {
-        if (distanceToPlayer <= attackRange)
+        float attackRangeSqr = attackRange * attackRange;
+        float attackExitRangeSqr = (attackRange + attackExitBuffer) * (attackRange + attackExitBuffer);
+        float detectionRangeSqr = detectionRange * detectionRange;
+
+        if (currentState == EnemyState.Attack)
         {
-            currentState = EnemyState.Attack;
+            if (sqrDistanceToPlayer <= attackExitRangeSqr)
+            {
+                SetState(EnemyState.Attack);
+            }
+            else if (sqrDistanceToPlayer <= detectionRangeSqr)
+            {
+                SetState(EnemyState.Chase);
+            }
+            else
+            {
+                SetState(EnemyState.Idle);
+            }
+
+            return;
         }
-        else if (distanceToPlayer <= detectionRange)
+
+        if (sqrDistanceToPlayer <= attackRangeSqr)
         {
-            currentState = EnemyState.Chase;
+            SetState(EnemyState.Attack);
+        }
+        else if (sqrDistanceToPlayer <= detectionRangeSqr)
+        {
+            SetState(EnemyState.Chase);
         }
         else
         {
-            currentState = EnemyState.Idle;
+            SetState(EnemyState.Idle);
         }
     }
 
     /// <summary>
     /// Executes behavior for the current state.
     /// </summary>
-    private void RunState(float distanceToPlayer)
+    private void RunState(float sqrDistanceToPlayer)
     {
         switch (currentState)
         {
@@ -109,9 +150,19 @@ public class EnemyAI : MonoBehaviour
                 break;
 
             case EnemyState.Attack:
-                AttackPlayer(distanceToPlayer);
+                AttackPlayer(Mathf.Sqrt(sqrDistanceToPlayer));
                 break;
         }
+    }
+
+    private void SetState(EnemyState newState)
+    {
+        if (currentState == newState)
+        {
+            return;
+        }
+
+        currentState = newState;
     }
 
     private void ChasePlayer()
@@ -120,7 +171,7 @@ public class EnemyAI : MonoBehaviour
         Vector3 direction = (player.position - transform.position).normalized;
         transform.position += direction * moveSpeed * Time.deltaTime;
 
-        // Optional: face movement direction while chasing.
+        // Face movement direction while chasing.
         if (direction.sqrMagnitude > 0.0001f)
         {
             transform.forward = direction;
@@ -133,7 +184,7 @@ public class EnemyAI : MonoBehaviour
         // (No position updates in attack state.)
 
         // Keep facing player while in attack range.
-        Vector3 lookDirection = (player.position - transform.position);
+        Vector3 lookDirection = player.position - transform.position;
         lookDirection.y = 0f;
 
         if (lookDirection.sqrMagnitude > 0.0001f)
@@ -147,24 +198,9 @@ public class EnemyAI : MonoBehaviour
             return;
         }
 
-        if (playerHealth == null)
-        {
-            Debug.LogWarning($"{gameObject.name} cannot attack: PlayerHealth not found.");
-            return;
-        }
-
-        // Deal damage and set next attack time.
         playerHealth.TakeDamage(attackDamage);
         nextAttackTime = Time.time + attackCooldown;
 
         Debug.Log($"{gameObject.name} attacked player for {attackDamage} damage at distance {distanceToPlayer:F2}");
-    }
-
-    private void CachePlayerHealth()
-    {
-        if (player != null)
-        {
-            playerHealth = player.GetComponent<PlayerHealth>();
-        }
     }
 }
