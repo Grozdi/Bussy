@@ -39,13 +39,19 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("Time in seconds between attacks.")]
     [SerializeField] private float attackCooldown = 1f;
 
+    [Header("State Flow")]
+    [Tooltip("Minimum time to stay in a state before switching to another.")]
+    [SerializeField] private float minStateDuration = 0.2f;
+
     private EnemyState currentState = EnemyState.Idle;
+    private float stateEnterTime;
     private float nextAttackTime;
     private PlayerHealth playerHealth;
 
     private void Awake()
     {
         ResolvePlayerReferences();
+        stateEnterTime = Time.time;
     }
 
     private void Update()
@@ -53,13 +59,15 @@ public class EnemyAI : MonoBehaviour
         // Keep references valid and avoid null-reference errors.
         if (!ResolvePlayerReferences())
         {
-            SetState(EnemyState.Idle);
+            TrySetState(EnemyState.Idle);
             return;
         }
 
         float sqrDistanceToPlayer = (player.position - transform.position).sqrMagnitude;
 
-        UpdateState(sqrDistanceToPlayer);
+        EnemyState desiredState = DetermineState(sqrDistanceToPlayer);
+        TrySetState(desiredState);
+
         RunState(sqrDistanceToPlayer);
     }
 
@@ -93,45 +101,63 @@ public class EnemyAI : MonoBehaviour
     }
 
     /// <summary>
-    /// Updates the current AI state based on distance to player.
-    /// Uses a small buffer to avoid rapid state flipping around attack range.
+    /// Determines what state the AI wants to be in based on player distance.
     /// </summary>
-    private void UpdateState(float sqrDistanceToPlayer)
+    private EnemyState DetermineState(float sqrDistanceToPlayer)
     {
         float attackRangeSqr = attackRange * attackRange;
         float attackExitRangeSqr = (attackRange + attackExitBuffer) * (attackRange + attackExitBuffer);
         float detectionRangeSqr = detectionRange * detectionRange;
 
+        // If already attacking, allow a small hysteresis before leaving attack.
         if (currentState == EnemyState.Attack)
         {
             if (sqrDistanceToPlayer <= attackExitRangeSqr)
             {
-                SetState(EnemyState.Attack);
-            }
-            else if (sqrDistanceToPlayer <= detectionRangeSqr)
-            {
-                SetState(EnemyState.Chase);
-            }
-            else
-            {
-                SetState(EnemyState.Idle);
+                return EnemyState.Attack;
             }
 
-            return;
+            if (sqrDistanceToPlayer <= detectionRangeSqr)
+            {
+                return EnemyState.Chase;
+            }
+
+            return EnemyState.Idle;
         }
 
         if (sqrDistanceToPlayer <= attackRangeSqr)
         {
-            SetState(EnemyState.Attack);
+            return EnemyState.Attack;
         }
-        else if (sqrDistanceToPlayer <= detectionRangeSqr)
+
+        if (sqrDistanceToPlayer <= detectionRangeSqr)
         {
-            SetState(EnemyState.Chase);
+            return EnemyState.Chase;
         }
-        else
+
+        return EnemyState.Idle;
+    }
+
+    /// <summary>
+    /// Applies state changes with a small transition delay and debug logs.
+    /// </summary>
+    private void TrySetState(EnemyState newState)
+    {
+        if (currentState == newState)
         {
-            SetState(EnemyState.Idle);
+            return;
         }
+
+        // Slight delay between state transitions.
+        if (Time.time < stateEnterTime + minStateDuration)
+        {
+            return;
+        }
+
+        currentState = newState;
+        stateEnterTime = Time.time;
+
+        Debug.Log($"{gameObject.name} state changed to: {currentState}");
     }
 
     /// <summary>
@@ -153,16 +179,6 @@ public class EnemyAI : MonoBehaviour
                 AttackPlayer(Mathf.Sqrt(sqrDistanceToPlayer));
                 break;
         }
-    }
-
-    private void SetState(EnemyState newState)
-    {
-        if (currentState == newState)
-        {
-            return;
-        }
-
-        currentState = newState;
     }
 
     private void ChasePlayer()
