@@ -10,8 +10,11 @@ public class SpellCaster : MonoBehaviour
     [Tooltip("Projectile prefab to spawn when casting.")]
     [SerializeField] private GameObject projectilePrefab;
 
-    [Tooltip("Spawn point used for projectile position and direction.")]
+    [Tooltip("Spawn point used for projectile position.")]
     [SerializeField] private Transform spawnPoint;
+
+    [Tooltip("Player camera used to define projectile forward direction.")]
+    [SerializeField] private Transform playerCamera;
 
     [Header("Cast Settings")]
     [Tooltip("Cooldown time in seconds between casts.")]
@@ -25,6 +28,11 @@ public class SpellCaster : MonoBehaviour
 
     // Time when the next cast is allowed.
     private float nextCastTime;
+
+    private void Awake()
+    {
+        AssignCameraIfMissing();
+    }
 
     private void Update()
     {
@@ -59,11 +67,18 @@ public class SpellCaster : MonoBehaviour
             return;
         }
 
+        if (!AssignCameraIfMissing())
+        {
+            Debug.LogWarning("Cast failed: playerCamera is not assigned and Camera.main was not found.");
+            return;
+        }
+
         // Set the next time casting is allowed.
         nextCastTime = Time.time + castCooldown;
 
-        // Spawn projectile at spawn point.
-        GameObject projectileObject = Instantiate(projectilePrefab, spawnPoint.position, spawnPoint.rotation);
+        // Spawn at the spawn point position, but face camera forward direction.
+        Quaternion spawnRotation = Quaternion.LookRotation(playerCamera.forward, Vector3.up);
+        GameObject projectileObject = Instantiate(projectilePrefab, spawnPoint.position, spawnRotation);
 
         // If the prefab has our Projectile script, set tunable values.
         Projectile projectile = projectileObject.GetComponent<Projectile>();
@@ -73,13 +88,34 @@ public class SpellCaster : MonoBehaviour
             projectile.damage = projectileDamage;
         }
 
-        // Apply forward movement using Rigidbody when available.
+        // Apply forward movement in camera forward direction using Rigidbody when available.
         Rigidbody rb = projectileObject.GetComponent<Rigidbody>();
         if (rb != null)
         {
-            rb.velocity = spawnPoint.forward * projectileSpeed;
+            rb.velocity = playerCamera.forward * projectileSpeed;
         }
 
-        Debug.Log($"Spell cast: spawned {projectileObject.name} at speed {projectileSpeed}, damage {projectileDamage}.");
+        Debug.Log($"Spell cast: spawned {projectileObject.name} from {spawnPoint.position} toward camera forward.");
+    }
+
+    /// <summary>
+    /// Assigns player camera from Camera.main when missing.
+    /// Returns true when a valid camera transform is available.
+    /// </summary>
+    private bool AssignCameraIfMissing()
+    {
+        if (playerCamera != null)
+        {
+            return true;
+        }
+
+        Camera mainCamera = Camera.main;
+        if (mainCamera == null)
+        {
+            return false;
+        }
+
+        playerCamera = mainCamera.transform;
+        return true;
     }
 }
