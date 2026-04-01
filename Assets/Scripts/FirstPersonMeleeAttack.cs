@@ -110,4 +110,20 @@ public class FirstPersonMeleeAttack : MonoBehaviour
         playerCamera = mainCamera.transform;
         return true;
     }
+
+    /// <summary>
+    /// Sets melee damage value (used by upgrade systems).
+    /// </summary>
+    public void SetDamage(float value)
+    {
+        damage = Mathf.Max(0f, value);
+    }
+
+    /// <summary>
+    /// Returns current melee damage value.
+    /// </summary>
+    public float GetDamage()
+    {
+        return damage;
+    }
 }

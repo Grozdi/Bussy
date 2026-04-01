@@ -129,4 +129,20 @@ public class FirstPersonController : MonoBehaviour
         Gizmos.color = Color.yellow;
         Gizmos.DrawWireSphere(groundCheck.position, groundCheckRadius);
     }
+
+    /// <summary>
+    /// Sets movement speed (used by upgrade systems).
+    /// </summary>
+    public void SetMoveSpeed(float value)
+    {
+        moveSpeed = Mathf.Max(0f, value);
+    }
+
+    /// <summary>
+    /// Returns current movement speed.
+    /// </summary>
+    public float GetMoveSpeed()
+    {
+        return moveSpeed;
+    }
 }

@@ -118,4 +118,20 @@ public class SpellCaster : MonoBehaviour
         playerCamera = mainCamera.transform;
         return true;
     }
+
+    /// <summary>
+    /// Sets projectile damage value (used by upgrade systems).
+    /// </summary>
+    public void SetSpellDamage(float value)
+    {
+        projectileDamage = Mathf.Max(0f, value);
+    }
+
+    /// <summary>
+    /// Returns current projectile damage value.
+    /// </summary>
+    public float GetSpellDamage()
+    {
+        return projectileDamage;
+    }
 }
