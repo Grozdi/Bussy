@@ -2,7 +2,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 
 /// <summary>
-/// Simple game manager that watches for player death
+/// Simple game manager that listens for player death
 /// and reloads the current scene after a short delay.
 /// </summary>
 public class GameManager : MonoBehaviour
@@ -18,33 +18,77 @@ public class GameManager : MonoBehaviour
     private void Awake()
     {
         ResolvePlayerHealthReference();
+        SubscribeToPlayerDeath();
+    }
+
+    private void OnEnable()
+    {
+        // Re-subscribe safely if this object is toggled.
+        SubscribeToPlayerDeath();
+    }
+
+    private void OnDisable()
+    {
+        UnsubscribeFromPlayerDeath();
     }
 
     private void Update()
     {
-        // Keep reference valid if the player was spawned later.
+        // Keep reference valid if player is spawned later.
         if (playerHealth == null)
         {
             ResolvePlayerHealthReference();
-            return;
-        }
-
-        // Detect player death once and schedule restart.
-        if (!restartQueued && playerHealth.health <= 0f)
-        {
-            restartQueued = true;
-            Debug.Log($"Player died. Restarting scene in {restartDelay} seconds...");
-            Invoke(nameof(RestartCurrentScene), restartDelay);
+            SubscribeToPlayerDeath();
         }
     }
 
     private void ResolvePlayerHealthReference()
     {
+        if (playerHealth != null)
+        {
+            return;
+        }
+
         GameObject playerObject = GameObject.FindWithTag("Player");
         if (playerObject != null)
         {
             playerHealth = playerObject.GetComponent<PlayerHealth>();
         }
+    }
+
+    private void SubscribeToPlayerDeath()
+    {
+        if (playerHealth == null)
+        {
+            return;
+        }
+
+        // Ensure no duplicate event subscription.
+        playerHealth.OnPlayerDied -= HandlePlayerDied;
+        playerHealth.OnPlayerDied += HandlePlayerDied;
+    }
+
+    private void UnsubscribeFromPlayerDeath()
+    {
+        if (playerHealth == null)
+        {
+            return;
+        }
+
+        playerHealth.OnPlayerDied -= HandlePlayerDied;
+    }
+
+    private void HandlePlayerDied()
+    {
+        // Prevent duplicate restart requests.
+        if (restartQueued)
+        {
+            return;
+        }
+
+        restartQueued = true;
+        Debug.Log($"Player death received by GameManager. Restarting scene in {restartDelay} seconds...");
+        Invoke(nameof(RestartCurrentScene), restartDelay);
     }
 
     private void RestartCurrentScene()

@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -13,6 +14,9 @@ public class PlayerHealth : MonoBehaviour
     [SerializeField] private FirstPersonController firstPersonController;
     [SerializeField] private FirstPersonMeleeAttack firstPersonMeleeAttack;
     [SerializeField] private SpellCaster spellCaster;
+
+    // Notifies listeners (e.g., GameManager) when the player dies.
+    public event Action OnPlayerDied;
 
     private bool isDead;
 
@@ -87,5 +91,8 @@ public class PlayerHealth : MonoBehaviour
         {
             spellCaster.enabled = false;
         }
+
+        // Notify listeners once.
+        OnPlayerDied?.Invoke();
     }
 }
