@@ -52,43 +52,58 @@ public class SimpleUpgradeSystem : MonoBehaviour
 
     private void BuyMeleeUpgrade()
     {
+        const string upgradeName = "Melee Damage";
+
         TryPurchaseUpgrade(
             meleeUpgradeCost,
             meleeAttack != null,
-            "Melee upgrade",
+            upgradeName,
             () =>
             {
-                float newDamage = meleeAttack.GetDamage() + meleeDamageIncrease;
-                meleeAttack.SetDamage(newDamage);
-                Debug.Log($"Melee upgrade purchased. New melee damage: {newDamage}. Gold left: {playerStats.gold}");
+                float oldValue = meleeAttack.GetDamage();
+                float newValue = oldValue + meleeDamageIncrease;
+
+                meleeAttack.SetDamage(newValue);
+
+                LogUpgradeSuccess(upgradeName, oldValue, newValue, meleeUpgradeCost);
             });
     }
 
     private void BuySpellUpgrade()
     {
+        const string upgradeName = "Spell Damage";
+
         TryPurchaseUpgrade(
             spellUpgradeCost,
             spellCaster != null,
-            "Spell upgrade",
+            upgradeName,
             () =>
             {
-                float newDamage = spellCaster.GetSpellDamage() + spellDamageIncrease;
-                spellCaster.SetSpellDamage(newDamage);
-                Debug.Log($"Spell upgrade purchased. New spell damage: {newDamage}. Gold left: {playerStats.gold}");
+                float oldValue = spellCaster.GetSpellDamage();
+                float newValue = oldValue + spellDamageIncrease;
+
+                spellCaster.SetSpellDamage(newValue);
+
+                LogUpgradeSuccess(upgradeName, oldValue, newValue, spellUpgradeCost);
             });
     }
 
     private void BuySpeedUpgrade()
     {
+        const string upgradeName = "Move Speed";
+
         TryPurchaseUpgrade(
             speedUpgradeCost,
             firstPersonController != null,
-            "Speed upgrade",
+            upgradeName,
             () =>
             {
-                float newSpeed = firstPersonController.GetMoveSpeed() + moveSpeedIncrease;
-                firstPersonController.SetMoveSpeed(newSpeed);
-                Debug.Log($"Speed upgrade purchased. New move speed: {newSpeed}. Gold left: {playerStats.gold}");
+                float oldValue = firstPersonController.GetMoveSpeed();
+                float newValue = oldValue + moveSpeedIncrease;
+
+                firstPersonController.SetMoveSpeed(newValue);
+
+                LogUpgradeSuccess(upgradeName, oldValue, newValue, speedUpgradeCost);
             });
     }
 
@@ -99,25 +114,37 @@ public class SimpleUpgradeSystem : MonoBehaviour
     {
         if (playerStats == null)
         {
-            Debug.LogWarning($"{upgradeName} failed: PlayerStats reference is missing.");
+            LogUpgradeFailure(upgradeName, "PlayerStats reference is missing.");
             return;
         }
 
         if (!hasTargetReference)
         {
-            Debug.LogWarning($"{upgradeName} failed: required component reference is missing.");
+            LogUpgradeFailure(upgradeName, "Required component reference is missing.");
             return;
         }
 
         if (playerStats.gold < cost)
         {
-            Debug.Log($"{upgradeName} failed: not enough gold. Need {cost}, have {playerStats.gold}.");
+            LogUpgradeFailure(upgradeName, $"Not enough gold (need {cost}, have {playerStats.gold}).");
             return;
         }
 
         // Deduct gold first, then apply upgrade.
         playerStats.gold -= cost;
         applyUpgrade?.Invoke();
+    }
+
+    private void LogUpgradeSuccess(string upgradeName, float oldValue, float newValue, int cost)
+    {
+        Debug.Log(
+            $"[Upgrade Success] {upgradeName} | Cost: {cost} | Old: {oldValue:F2} -> New: {newValue:F2} | Gold Left: {playerStats.gold}");
+    }
+
+    private void LogUpgradeFailure(string upgradeName, string reason)
+    {
+        int gold = playerStats != null ? playerStats.gold : 0;
+        Debug.LogWarning($"[Upgrade Failed] {upgradeName} | Reason: {reason} | Gold: {gold}");
     }
 
     /// <summary>
