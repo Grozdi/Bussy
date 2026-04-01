@@ -11,6 +11,9 @@ public class EnemySpawner : MonoBehaviour
     [Tooltip("Enemy prefab to spawn.")]
     public GameObject enemyPrefab;
 
+    [Tooltip("Optional player reference used to avoid spawning too close.")]
+    public Transform player;
+
     [Tooltip("Seconds between spawn attempts.")]
     public float spawnRate = 2f;
 
@@ -20,9 +23,28 @@ public class EnemySpawner : MonoBehaviour
     [Tooltip("Spawn radius around this spawner.")]
     public float spawnRadius = 12f;
 
+    [Tooltip("Minimum allowed distance from player when spawning.")]
+    public float minDistanceFromPlayer = 6f;
+
+    [Tooltip("How many random position attempts to find a valid spawn point.")]
+    public int maxSpawnAttempts = 8;
+
     // Tracks currently alive spawned enemies.
-    private readonly List<GameObject> currentEnemies = new List<GameObject>();
+    private readonly List<GameObject> aliveEnemies = new List<GameObject>();
     private float nextSpawnTime;
+
+    private void Awake()
+    {
+        // Optional fallback to player tagged object.
+        if (player == null)
+        {
+            GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+            if (playerObject != null)
+            {
+                player = playerObject.transform;
+            }
+        }
+    }
 
     private void Update()
     {
@@ -30,7 +52,7 @@ public class EnemySpawner : MonoBehaviour
         CleanupDestroyedEnemies();
 
         // Only attempt spawn when under max and when spawn timer is ready.
-        if (currentEnemies.Count >= maxEnemies)
+        if (aliveEnemies.Count >= maxEnemies)
         {
             return;
         }
@@ -52,15 +74,46 @@ public class EnemySpawner : MonoBehaviour
             return;
         }
 
-        Vector3 spawnPosition = GetRandomSpawnPosition();
-        GameObject newEnemy = Instantiate(enemyPrefab, spawnPosition, Quaternion.identity);
+        Vector3 spawnPosition;
+        if (!TryGetValidSpawnPosition(out spawnPosition))
+        {
+            // Skip this spawn cycle if no valid position was found.
+            nextSpawnTime = Time.time + spawnRate;
+            return;
+        }
 
+        GameObject newEnemy = Instantiate(enemyPrefab, spawnPosition, Quaternion.identity);
         if (newEnemy != null)
         {
-            currentEnemies.Add(newEnemy);
+            aliveEnemies.Add(newEnemy);
         }
 
         nextSpawnTime = Time.time + spawnRate;
+    }
+
+    private bool TryGetValidSpawnPosition(out Vector3 spawnPosition)
+    {
+        for (int i = 0; i < Mathf.Max(1, maxSpawnAttempts); i++)
+        {
+            Vector3 candidate = GetRandomSpawnPosition();
+
+            // If no player reference exists, accept the position.
+            if (player == null)
+            {
+                spawnPosition = candidate;
+                return true;
+            }
+
+            float distanceToPlayer = Vector3.Distance(candidate, player.position);
+            if (distanceToPlayer >= minDistanceFromPlayer)
+            {
+                spawnPosition = candidate;
+                return true;
+            }
+        }
+
+        spawnPosition = transform.position;
+        return false;
     }
 
     private Vector3 GetRandomSpawnPosition()
@@ -75,11 +128,11 @@ public class EnemySpawner : MonoBehaviour
 
     private void CleanupDestroyedEnemies()
     {
-        for (int i = currentEnemies.Count - 1; i >= 0; i--)
+        for (int i = aliveEnemies.Count - 1; i >= 0; i--)
         {
-            if (currentEnemies[i] == null)
+            if (aliveEnemies[i] == null)
             {
-                currentEnemies.RemoveAt(i);
+                aliveEnemies.RemoveAt(i);
             }
         }
     }
