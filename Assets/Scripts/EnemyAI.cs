@@ -15,160 +15,88 @@ public class EnemyAI : MonoBehaviour
     }
 
     [Header("References")]
-    [Tooltip("Target player to track.")]
+    [Tooltip("Optional player reference. If empty, it is found at runtime by tag.")]
     [SerializeField] private Transform player;
 
     [Header("Movement")]
-    [Tooltip("Move speed while chasing the player.")]
     [SerializeField] private float moveSpeed = 3f;
 
     [Header("Ranges")]
-    [Tooltip("Distance at which the enemy starts chasing.")]
     [SerializeField] private float detectionRange = 10f;
-
-    [Tooltip("Distance at which the enemy attacks and stops moving.")]
     [SerializeField] private float attackRange = 2f;
 
-    [Tooltip("Extra distance to leave Attack state, helping smooth transitions.")]
-    [SerializeField] private float attackExitBuffer = 0.35f;
-
     [Header("Attack")]
-    [Tooltip("Damage dealt to the player per attack.")]
     [SerializeField] private float attackDamage = 10f;
-
-    [Tooltip("Time in seconds between attacks.")]
     [SerializeField] private float attackCooldown = 1f;
 
-    [Header("State Flow")]
-    [Tooltip("Minimum time to stay in a state before switching to another.")]
-    [SerializeField] private float minStateDuration = 0.2f;
-
     private EnemyState currentState = EnemyState.Idle;
-    private float stateEnterTime;
-    private float nextAttackTime;
     private PlayerHealth playerHealth;
+    private float nextAttackTime;
 
     private void Awake()
     {
-        ResolvePlayerReferences();
-        stateEnterTime = Time.time;
+        FindPlayerReferences();
     }
 
     private void Update()
     {
-        // Keep references valid and avoid null-reference errors.
-        if (!ResolvePlayerReferences())
+        // Retry finding player if references are missing.
+        if (player == null || playerHealth == null)
         {
-            TrySetState(EnemyState.Idle);
+            FindPlayerReferences();
+        }
+
+        // If player still not found, stay idle safely.
+        if (player == null || playerHealth == null)
+        {
+            currentState = EnemyState.Idle;
             return;
         }
 
-        float sqrDistanceToPlayer = (player.position - transform.position).sqrMagnitude;
+        float distanceToPlayer = Vector3.Distance(transform.position, player.position);
 
-        EnemyState desiredState = DetermineState(sqrDistanceToPlayer);
-        TrySetState(desiredState);
-
-        RunState(sqrDistanceToPlayer);
+        UpdateState(distanceToPlayer);
+        RunState(distanceToPlayer);
     }
 
     /// <summary>
-    /// Resolves player Transform and PlayerHealth references.
-    /// Returns true when both references are available.
+    /// Finds player Transform and PlayerHealth using Player tag.
     /// </summary>
-    private bool ResolvePlayerReferences()
+    private void FindPlayerReferences()
     {
-        if (player == null)
+        GameObject playerObject = GameObject.FindWithTag("Player");
+        if (playerObject == null)
         {
-            GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
-            if (playerObject != null)
-            {
-                player = playerObject.transform;
-            }
-        }
-
-        if (player == null)
-        {
+            player = null;
             playerHealth = null;
-            return false;
-        }
-
-        if (playerHealth == null)
-        {
-            playerHealth = player.GetComponent<PlayerHealth>();
-        }
-
-        return playerHealth != null;
-    }
-
-    /// <summary>
-    /// Determines what state the AI wants to be in based on player distance.
-    /// </summary>
-    private EnemyState DetermineState(float sqrDistanceToPlayer)
-    {
-        float attackRangeSqr = attackRange * attackRange;
-        float attackExitRangeSqr = (attackRange + attackExitBuffer) * (attackRange + attackExitBuffer);
-        float detectionRangeSqr = detectionRange * detectionRange;
-
-        // If already attacking, allow a small hysteresis before leaving attack.
-        if (currentState == EnemyState.Attack)
-        {
-            if (sqrDistanceToPlayer <= attackExitRangeSqr)
-            {
-                return EnemyState.Attack;
-            }
-
-            if (sqrDistanceToPlayer <= detectionRangeSqr)
-            {
-                return EnemyState.Chase;
-            }
-
-            return EnemyState.Idle;
-        }
-
-        if (sqrDistanceToPlayer <= attackRangeSqr)
-        {
-            return EnemyState.Attack;
-        }
-
-        if (sqrDistanceToPlayer <= detectionRangeSqr)
-        {
-            return EnemyState.Chase;
-        }
-
-        return EnemyState.Idle;
-    }
-
-    /// <summary>
-    /// Applies state changes with a small transition delay and debug logs.
-    /// </summary>
-    private void TrySetState(EnemyState newState)
-    {
-        if (currentState == newState)
-        {
             return;
         }
 
-        // Slight delay between state transitions.
-        if (Time.time < stateEnterTime + minStateDuration)
-        {
-            return;
-        }
-
-        currentState = newState;
-        stateEnterTime = Time.time;
-
-        Debug.Log($"{gameObject.name} state changed to: {currentState}");
+        player = playerObject.transform;
+        playerHealth = playerObject.GetComponent<PlayerHealth>();
     }
 
-    /// <summary>
-    /// Executes behavior for the current state.
-    /// </summary>
-    private void RunState(float sqrDistanceToPlayer)
+    private void UpdateState(float distanceToPlayer)
+    {
+        if (distanceToPlayer <= attackRange)
+        {
+            currentState = EnemyState.Attack;
+        }
+        else if (distanceToPlayer <= detectionRange)
+        {
+            currentState = EnemyState.Chase;
+        }
+        else
+        {
+            currentState = EnemyState.Idle;
+        }
+    }
+
+    private void RunState(float distanceToPlayer)
     {
         switch (currentState)
         {
             case EnemyState.Idle:
-                // Stay still.
                 break;
 
             case EnemyState.Chase:
@@ -176,18 +104,16 @@ public class EnemyAI : MonoBehaviour
                 break;
 
             case EnemyState.Attack:
-                AttackPlayer(Mathf.Sqrt(sqrDistanceToPlayer));
+                AttackPlayer(distanceToPlayer);
                 break;
         }
     }
 
     private void ChasePlayer()
     {
-        // Move toward the player using transform-based movement.
         Vector3 direction = (player.position - transform.position).normalized;
         transform.position += direction * moveSpeed * Time.deltaTime;
 
-        // Face movement direction while chasing.
         if (direction.sqrMagnitude > 0.0001f)
         {
             transform.forward = direction;
@@ -196,10 +122,7 @@ public class EnemyAI : MonoBehaviour
 
     private void AttackPlayer(float distanceToPlayer)
     {
-        // Stop moving while attacking.
-        // (No position updates in attack state.)
-
-        // Keep facing player while in attack range.
+        // Face player while attacking.
         Vector3 lookDirection = player.position - transform.position;
         lookDirection.y = 0f;
 
@@ -208,7 +131,7 @@ public class EnemyAI : MonoBehaviour
             transform.forward = lookDirection.normalized;
         }
 
-        // Prevent attack spamming with cooldown.
+        // Prevent attack spamming.
         if (Time.time < nextAttackTime)
         {
             return;
