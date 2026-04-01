@@ -1,3 +1,4 @@
+using System;
 using UnityEngine;
 
 /// <summary>
@@ -25,28 +26,24 @@ public class SimpleUpgradeSystem : MonoBehaviour
 
     private void Awake()
     {
-        // Optional fallback to auto-find PlayerStats on same object.
-        if (playerStats == null)
-        {
-            playerStats = GetComponent<PlayerStats>();
-        }
+        ResolveReferences();
     }
 
     private void Update()
     {
-        // Press 1 to buy melee damage upgrade.
+        // Keep references fresh in case objects are swapped at runtime.
+        ResolveReferences();
+
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
             BuyMeleeUpgrade();
         }
 
-        // Press 2 to buy spell damage upgrade.
         if (Input.GetKeyDown(KeyCode.Alpha2))
         {
             BuySpellUpgrade();
         }
 
-        // Press 3 to buy move speed upgrade.
         if (Input.GetKeyDown(KeyCode.Alpha3))
         {
             BuySpeedUpgrade();
@@ -55,84 +52,124 @@ public class SimpleUpgradeSystem : MonoBehaviour
 
     private void BuyMeleeUpgrade()
     {
-        if (!CanAfford(meleeUpgradeCost))
-        {
-            Debug.Log($"Melee upgrade failed: not enough gold. Need {meleeUpgradeCost}, have {GetGoldSafe()}.");
-            return;
-        }
-
-        if (meleeAttack == null)
-        {
-            Debug.LogWarning("Melee upgrade failed: FirstPersonMeleeAttack reference is missing.");
-            return;
-        }
-
-        SpendGold(meleeUpgradeCost);
-
-        float newDamage = meleeAttack.GetDamage() + meleeDamageIncrease;
-        meleeAttack.SetDamage(newDamage);
-
-        Debug.Log($"Melee upgrade purchased. New melee damage: {newDamage}. Gold left: {playerStats.gold}");
+        TryPurchaseUpgrade(
+            meleeUpgradeCost,
+            meleeAttack != null,
+            "Melee upgrade",
+            () =>
+            {
+                float newDamage = meleeAttack.GetDamage() + meleeDamageIncrease;
+                meleeAttack.SetDamage(newDamage);
+                Debug.Log($"Melee upgrade purchased. New melee damage: {newDamage}. Gold left: {playerStats.gold}");
+            });
     }
 
     private void BuySpellUpgrade()
     {
-        if (!CanAfford(spellUpgradeCost))
-        {
-            Debug.Log($"Spell upgrade failed: not enough gold. Need {spellUpgradeCost}, have {GetGoldSafe()}.");
-            return;
-        }
-
-        if (spellCaster == null)
-        {
-            Debug.LogWarning("Spell upgrade failed: SpellCaster reference is missing.");
-            return;
-        }
-
-        SpendGold(spellUpgradeCost);
-
-        float newDamage = spellCaster.GetSpellDamage() + spellDamageIncrease;
-        spellCaster.SetSpellDamage(newDamage);
-
-        Debug.Log($"Spell upgrade purchased. New spell damage: {newDamage}. Gold left: {playerStats.gold}");
+        TryPurchaseUpgrade(
+            spellUpgradeCost,
+            spellCaster != null,
+            "Spell upgrade",
+            () =>
+            {
+                float newDamage = spellCaster.GetSpellDamage() + spellDamageIncrease;
+                spellCaster.SetSpellDamage(newDamage);
+                Debug.Log($"Spell upgrade purchased. New spell damage: {newDamage}. Gold left: {playerStats.gold}");
+            });
     }
 
     private void BuySpeedUpgrade()
     {
-        if (!CanAfford(speedUpgradeCost))
+        TryPurchaseUpgrade(
+            speedUpgradeCost,
+            firstPersonController != null,
+            "Speed upgrade",
+            () =>
+            {
+                float newSpeed = firstPersonController.GetMoveSpeed() + moveSpeedIncrease;
+                firstPersonController.SetMoveSpeed(newSpeed);
+                Debug.Log($"Speed upgrade purchased. New move speed: {newSpeed}. Gold left: {playerStats.gold}");
+            });
+    }
+
+    /// <summary>
+    /// Centralized purchase flow to keep logic modular and consistent.
+    /// </summary>
+    private void TryPurchaseUpgrade(int cost, bool hasTargetReference, string upgradeName, Action applyUpgrade)
+    {
+        if (playerStats == null)
         {
-            Debug.Log($"Speed upgrade failed: not enough gold. Need {speedUpgradeCost}, have {GetGoldSafe()}.");
+            Debug.LogWarning($"{upgradeName} failed: PlayerStats reference is missing.");
             return;
+        }
+
+        if (!hasTargetReference)
+        {
+            Debug.LogWarning($"{upgradeName} failed: required component reference is missing.");
+            return;
+        }
+
+        if (playerStats.gold < cost)
+        {
+            Debug.Log($"{upgradeName} failed: not enough gold. Need {cost}, have {playerStats.gold}.");
+            return;
+        }
+
+        // Deduct gold first, then apply upgrade.
+        playerStats.gold -= cost;
+        applyUpgrade?.Invoke();
+    }
+
+    /// <summary>
+    /// Attempts to fill missing references safely.
+    /// </summary>
+    private void ResolveReferences()
+    {
+        if (playerStats == null)
+        {
+            playerStats = GetComponent<PlayerStats>();
+        }
+
+        if (meleeAttack == null)
+        {
+            meleeAttack = GetComponent<FirstPersonMeleeAttack>();
+        }
+
+        if (spellCaster == null)
+        {
+            spellCaster = GetComponent<SpellCaster>();
         }
 
         if (firstPersonController == null)
         {
-            Debug.LogWarning("Speed upgrade failed: FirstPersonController reference is missing.");
+            firstPersonController = GetComponent<FirstPersonController>();
+        }
+
+        // Fallback: try to find components on Player-tagged object.
+        GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
+        if (playerObject == null)
+        {
             return;
         }
 
-        SpendGold(speedUpgradeCost);
+        if (playerStats == null)
+        {
+            playerStats = playerObject.GetComponent<PlayerStats>();
+        }
 
-        float newSpeed = firstPersonController.GetMoveSpeed() + moveSpeedIncrease;
-        firstPersonController.SetMoveSpeed(newSpeed);
+        if (meleeAttack == null)
+        {
+            meleeAttack = playerObject.GetComponent<FirstPersonMeleeAttack>();
+        }
 
-        Debug.Log($"Speed upgrade purchased. New move speed: {newSpeed}. Gold left: {playerStats.gold}");
-    }
+        if (spellCaster == null)
+        {
+            spellCaster = playerObject.GetComponent<SpellCaster>();
+        }
 
-    private bool CanAfford(int cost)
-    {
-        return playerStats != null && playerStats.gold >= cost;
-    }
-
-    private int GetGoldSafe()
-    {
-        return playerStats != null ? playerStats.gold : 0;
-    }
-
-    private void SpendGold(int amount)
-    {
-        // Deduct gold directly as requested.
-        playerStats.gold -= amount;
-        Debug.Log($"Spent {amount} gold. Current gold: {playerStats.gold}");
+        if (firstPersonController == null)
+        {
+            firstPersonController = playerObject.GetComponent<FirstPersonController>();
+        }
     }
 }
