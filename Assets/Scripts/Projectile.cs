@@ -1,45 +1,89 @@
 using UnityEngine;
 
 /// <summary>
-/// Simple projectile behavior:
-/// - Moves forward at a constant speed
-/// - Applies damage on impact if target has EnemyHealth
-/// - Destroys itself after impact or when lifetime expires
+/// Reusable projectile used by both player and enemies.
+/// Handles movement, collision, and damage.
 /// </summary>
 public class Projectile : MonoBehaviour
 {
-    [Tooltip("Forward movement speed (units per second).")]
-    public float speed = 20f;
+    public enum DamageTarget
+    {
+        Enemy,
+        Player,
+        Both
+    }
 
-    [Tooltip("Damage applied when hitting an EnemyHealth target.")]
-    public float damage = 10f;
+    [Tooltip("Movement speed (units per second).")]
+    [SerializeField] private float speed = 20f;
 
-    [Tooltip("How long the projectile lives before auto-destruction.")]
-    public float lifetime = 3f;
+    [Tooltip("Damage dealt on impact.")]
+    [SerializeField] private float damage = 10f;
+
+    [Tooltip("Lifetime before auto-destruction.")]
+    [SerializeField] private float lifetime = 3f;
+
+    [Tooltip("Which side this projectile can damage.")]
+    [SerializeField] private DamageTarget damageTarget = DamageTarget.Enemy;
+
+    private Vector3 moveDirection;
+
+    private void Awake()
+    {
+        moveDirection = transform.forward;
+    }
 
     private void Start()
     {
-        // Auto-destroy after a fixed lifetime to avoid lingering projectiles.
         Destroy(gameObject, lifetime);
     }
 
     private void Update()
     {
-        // Move forward constantly in the projectile's local forward direction.
-        transform.position += transform.forward * speed * Time.deltaTime;
+        transform.position += moveDirection * speed * Time.deltaTime;
+    }
+
+    /// <summary>
+    /// Initializes projectile flight and damage settings.
+    /// </summary>
+    public void Fire(Vector3 direction, float speedValue, float damageValue, DamageTarget target)
+    {
+        moveDirection = direction.sqrMagnitude > 0.0001f ? direction.normalized : transform.forward;
+        speed = speedValue;
+        damage = damageValue;
+        damageTarget = target;
+        transform.forward = moveDirection;
     }
 
     private void OnCollisionEnter(Collision collision)
     {
-        // Try to find EnemyHealth on the collided object.
-        EnemyHealth enemyHealth = collision.collider.GetComponent<EnemyHealth>();
+        ApplyDamage(collision.collider);
+        Destroy(gameObject);
+    }
 
-        if (enemyHealth != null)
+    private void OnTriggerEnter(Collider other)
+    {
+        ApplyDamage(other);
+        Destroy(gameObject);
+    }
+
+    private void ApplyDamage(Component hit)
+    {
+        if (damageTarget == DamageTarget.Enemy || damageTarget == DamageTarget.Both)
         {
-            enemyHealth.TakeDamage(damage);
+            EnemyHealth enemyHealth = hit.GetComponent<EnemyHealth>();
+            if (enemyHealth != null)
+            {
+                enemyHealth.TakeDamage(damage);
+            }
         }
 
-        // Destroy projectile after any impact.
-        Destroy(gameObject);
+        if (damageTarget == DamageTarget.Player || damageTarget == DamageTarget.Both)
+        {
+            PlayerHealth playerHealth = hit.GetComponent<PlayerHealth>();
+            if (playerHealth != null)
+            {
+                playerHealth.TakeDamage(damage);
+            }
+        }
     }
 }

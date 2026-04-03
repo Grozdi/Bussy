@@ -26,7 +26,6 @@ public class SpellCaster : MonoBehaviour
     [Tooltip("Damage assigned to the spawned projectile.")]
     [SerializeField] private float projectileDamage = 15f;
 
-    // Time when the next cast is allowed.
     private float nextCastTime;
 
     private void Awake()
@@ -36,19 +35,14 @@ public class SpellCaster : MonoBehaviour
 
     private void Update()
     {
-        // Trigger spell cast on right mouse click.
         if (Input.GetMouseButtonDown(1))
         {
             TryCastSpell();
         }
     }
 
-    /// <summary>
-    /// Attempts to cast a spell if cooldown and references are valid.
-    /// </summary>
     private void TryCastSpell()
     {
-        // Prevent casting during cooldown.
         if (Time.time < nextCastTime)
         {
             Debug.Log("Cast blocked: cooldown active.");
@@ -73,35 +67,21 @@ public class SpellCaster : MonoBehaviour
             return;
         }
 
-        // Set the next time casting is allowed.
         nextCastTime = Time.time + castCooldown;
 
-        // Spawn at the spawn point position, but face camera forward direction.
-        Quaternion spawnRotation = Quaternion.LookRotation(playerCamera.forward, Vector3.up);
+        Vector3 direction = playerCamera.forward;
+        Quaternion spawnRotation = Quaternion.LookRotation(direction, Vector3.up);
         GameObject projectileObject = Instantiate(projectilePrefab, spawnPoint.position, spawnRotation);
 
-        // If the prefab has our Projectile script, set tunable values.
         Projectile projectile = projectileObject.GetComponent<Projectile>();
         if (projectile != null)
         {
-            projectile.speed = projectileSpeed;
-            projectile.damage = projectileDamage;
+            projectile.Fire(direction, projectileSpeed, projectileDamage, Projectile.DamageTarget.Enemy);
         }
 
-        // Apply forward movement in camera forward direction using Rigidbody when available.
-        Rigidbody rb = projectileObject.GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.velocity = playerCamera.forward * projectileSpeed;
-        }
-
-        Debug.Log($"Spell cast: spawned {projectileObject.name} from {spawnPoint.position} toward camera forward.");
+        Debug.Log($"Spell cast: spawned {projectileObject.name} from {spawnPoint.position}.");
     }
 
-    /// <summary>
-    /// Assigns player camera from Camera.main when missing.
-    /// Returns true when a valid camera transform is available.
-    /// </summary>
     private bool AssignCameraIfMissing()
     {
         if (playerCamera != null)
@@ -119,17 +99,11 @@ public class SpellCaster : MonoBehaviour
         return true;
     }
 
-    /// <summary>
-    /// Sets projectile damage value (used by upgrade systems).
-    /// </summary>
     public void SetSpellDamage(float value)
     {
         projectileDamage = Mathf.Max(0f, value);
     }
 
-    /// <summary>
-    /// Returns current projectile damage value.
-    /// </summary>
     public float GetSpellDamage()
     {
         return projectileDamage;

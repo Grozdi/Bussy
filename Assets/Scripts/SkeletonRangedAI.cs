@@ -105,18 +105,10 @@ public class SkeletonRangedAI : MonoBehaviour
             projectileSpawnPoint.position,
             Quaternion.LookRotation(direction, Vector3.up));
 
-        SkeletonProjectile projectile = projectileObject.GetComponent<SkeletonProjectile>();
-        if (projectile == null)
+        Projectile projectile = projectileObject.GetComponent<Projectile>();
+        if (projectile != null)
         {
-            projectile = projectileObject.AddComponent<SkeletonProjectile>();
-        }
-
-        projectile.SetDamage(projectileDamage);
-
-        Rigidbody rb = projectileObject.GetComponent<Rigidbody>();
-        if (rb != null)
-        {
-            rb.velocity = direction * projectileSpeed;
+            projectile.Fire(direction, projectileSpeed, projectileDamage, Projectile.DamageTarget.Player);
         }
     }
 }
