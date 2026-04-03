@@ -1,62 +1,49 @@
 using UnityEngine;
 
 /// <summary>
-/// Lightweight bat enemy AI with two states:
-/// - Idle: hover/move slowly
-/// - Aggressive: chase and attack player
-///
-/// Bat becomes aggressive when the player is close AND
-/// either moving fast or jumping.
+/// Lightweight bat AI with simple behavior:
+/// - Chase fast when player moves fast or jumps
+/// - Otherwise hover/move slowly
 /// </summary>
 public class BatEnemyAI : MonoBehaviour
 {
-    private enum BatState
-    {
-        Idle,
-        Aggressive
-    }
-
     [Header("References")]
     [Tooltip("Optional player transform. If empty, found using Player tag.")]
     [SerializeField] private Transform player;
 
-    [Header("Detection")]
-    [Tooltip("Distance at which bat starts evaluating player behavior.")]
-    [SerializeField] private float detectionRange = 12f;
+    [Header("Player Movement Triggers")]
+    [Tooltip("Estimated player horizontal speed needed to trigger fast chase.")]
+    [SerializeField] private float playerSpeedThreshold = 5f;
 
-    [Tooltip("Estimated player horizontal speed needed to trigger aggression.")]
-    [SerializeField] private float playerFastMoveThreshold = 5f;
+    [Tooltip("Estimated upward player speed needed to trigger fast chase (jump).")]
+    [SerializeField] private float playerVerticalVelocityThreshold = 1.2f;
 
-    [Tooltip("Estimated upward speed considered a jump.")]
-    [SerializeField] private float jumpVelocityThreshold = 1.2f;
+    [Header("Bat Movement")]
+    [Tooltip("Movement speed when not aggressive.")]
+    [SerializeField] private float slowMoveSpeed = 1.5f;
 
-    [Header("Movement")]
-    [Tooltip("Slow movement speed while idle.")]
-    [SerializeField] private float idleMoveSpeed = 1.5f;
+    [Tooltip("Movement speed when aggressive.")]
+    [SerializeField] private float fastChaseSpeed = 5f;
 
-    [Tooltip("Chase speed while aggressive.")]
-    [SerializeField] private float aggressiveMoveSpeed = 5f;
-
-    [Tooltip("Hover height offset from initial position.")]
+    [Tooltip("Idle hover height offset from start position.")]
     [SerializeField] private float hoverAmplitude = 0.5f;
 
-    [Tooltip("Hover speed while idle.")]
+    [Tooltip("Idle hover frequency.")]
     [SerializeField] private float hoverFrequency = 2f;
 
     [Header("Attack")]
-    [Tooltip("Distance at which bat can attack the player.")]
+    [Tooltip("Distance at which bat can attack player.")]
     [SerializeField] private float attackRange = 1.5f;
 
-    [Tooltip("Damage dealt per attack.")]
+    [Tooltip("Damage dealt per hit.")]
     [SerializeField] private float attackDamage = 8f;
 
-    [Tooltip("Cooldown time between attacks.")]
+    [Tooltip("Cooldown between attacks.")]
     [SerializeField] private float attackCooldown = 1f;
 
-    private BatState currentState = BatState.Idle;
     private PlayerHealth playerHealth;
-
     private Vector3 startPosition;
+
     private Vector3 lastPlayerPosition;
     private bool hasLastPlayerPosition;
     private float nextAttackTime;
@@ -71,24 +58,23 @@ public class BatEnemyAI : MonoBehaviour
     {
         if (!ResolvePlayerReferences())
         {
-            RunIdleHover();
+            RunSlowHover();
             return;
         }
 
-        float distanceToPlayer = Vector3.Distance(transform.position, player.position);
-        float estimatedPlayerHorizontalSpeed;
-        float estimatedPlayerVerticalSpeed;
-        EstimatePlayerMovement(out estimatedPlayerHorizontalSpeed, out estimatedPlayerVerticalSpeed);
+        float playerSpeed;
+        float playerVerticalVelocity;
+        EstimatePlayerMovement(out playerSpeed, out playerVerticalVelocity);
 
-        UpdateState(distanceToPlayer, estimatedPlayerHorizontalSpeed, estimatedPlayerVerticalSpeed);
+        bool shouldChaseFast = playerSpeed > playerSpeedThreshold || playerVerticalVelocity > playerVerticalVelocityThreshold;
 
-        if (currentState == BatState.Aggressive)
+        if (shouldChaseFast)
         {
-            RunAggressive(distanceToPlayer);
+            RunFastChaseAndAttack();
         }
         else
         {
-            RunIdleHover();
+            RunSlowHover();
         }
     }
 
@@ -113,10 +99,10 @@ public class BatEnemyAI : MonoBehaviour
         return player != null && playerHealth != null;
     }
 
-    private void EstimatePlayerMovement(out float horizontalSpeed, out float verticalSpeed)
+    private void EstimatePlayerMovement(out float horizontalSpeed, out float verticalVelocity)
     {
         horizontalSpeed = 0f;
-        verticalSpeed = 0f;
+        verticalVelocity = 0f;
 
         if (!hasLastPlayerPosition)
         {
@@ -126,49 +112,38 @@ public class BatEnemyAI : MonoBehaviour
         }
 
         Vector3 delta = player.position - lastPlayerPosition;
-        float deltaTime = Mathf.Max(Time.deltaTime, 0.0001f);
+        float dt = Mathf.Max(Time.deltaTime, 0.0001f);
 
-        horizontalSpeed = new Vector2(delta.x, delta.z).magnitude / deltaTime;
-        verticalSpeed = delta.y / deltaTime;
+        horizontalSpeed = new Vector2(delta.x, delta.z).magnitude / dt;
+        verticalVelocity = delta.y / dt;
 
         lastPlayerPosition = player.position;
     }
 
-    private void UpdateState(float distanceToPlayer, float playerHorizontalSpeed, float playerVerticalSpeed)
+    private void RunSlowHover()
     {
-        bool playerInRange = distanceToPlayer <= detectionRange;
-        bool playerMovingFast = playerHorizontalSpeed >= playerFastMoveThreshold;
-        bool playerJumped = playerVerticalSpeed >= jumpVelocityThreshold;
-
-        currentState = (playerInRange && (playerMovingFast || playerJumped))
-            ? BatState.Aggressive
-            : BatState.Idle;
-    }
-
-    private void RunIdleHover()
-    {
-        // Hover around the initial position with a smooth sine wave.
+        // Hover gently around initial position.
         float hoverOffset = Mathf.Sin(Time.time * hoverFrequency) * hoverAmplitude;
         Vector3 target = startPosition + Vector3.up * hoverOffset;
 
-        transform.position = Vector3.MoveTowards(
-            transform.position,
-            target,
-            idleMoveSpeed * Time.deltaTime);
+        transform.position = Vector3.MoveTowards(transform.position, target, slowMoveSpeed * Time.deltaTime);
     }
 
-    private void RunAggressive(float distanceToPlayer)
+    private void RunFastChaseAndAttack()
     {
-        // Chase toward player.
-        Vector3 toPlayer = (player.position - transform.position).normalized;
-        transform.position += toPlayer * aggressiveMoveSpeed * Time.deltaTime;
+        // Chase directly toward player at fast speed.
+        Vector3 toPlayer = player.position - transform.position;
+        Vector3 direction = toPlayer.normalized;
 
-        if (toPlayer.sqrMagnitude > 0.0001f)
+        transform.position += direction * fastChaseSpeed * Time.deltaTime;
+
+        if (direction.sqrMagnitude > 0.0001f)
         {
-            transform.forward = toPlayer;
+            transform.forward = direction;
         }
 
-        // Attack when close enough and cooldown is ready.
+        // Attack when close and cooldown is ready.
+        float distanceToPlayer = toPlayer.magnitude;
         if (distanceToPlayer <= attackRange && Time.time >= nextAttackTime)
         {
             playerHealth.TakeDamage(attackDamage);
