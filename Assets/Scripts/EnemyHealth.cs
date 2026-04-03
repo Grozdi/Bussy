@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
@@ -12,13 +13,23 @@ public class EnemyHealth : MonoBehaviour
     [Tooltip("Gold given to the player when this enemy dies.")]
     public int goldReward = 10;
 
+    [Header("Item Drop")]
+    [Tooltip("Pickup prefab spawned when an item drop succeeds.")]
+    [SerializeField] private GameObject itemPickupPrefab;
+
+    [Tooltip("Possible items this enemy can drop.")]
+    [SerializeField] private List<ItemData> possibleItemDrops = new List<ItemData>();
+
+    [Tooltip("Chance (0 to 1) to drop an item on death.")]
+    [Range(0f, 1f)]
+    [SerializeField] private float itemDropChance = 0.25f;
+
     // Prevents double death handling/reward in edge cases.
     private bool isDead;
 
     /// <summary>
     /// Applies damage to this enemy.
     /// </summary>
-    /// <param name="amount">Damage amount to subtract from health.</param>
     public void TakeDamage(float amount)
     {
         if (isDead)
@@ -26,19 +37,14 @@ public class EnemyHealth : MonoBehaviour
             return;
         }
 
-        // Ignore non-positive damage values.
         if (amount <= 0f)
         {
             return;
         }
 
-        // Reduce health by incoming damage.
         health -= amount;
-
-        // Log damage and updated health for debugging.
         Debug.Log($"{gameObject.name} took {amount} damage. Remaining health: {health}");
 
-        // If health is zero or less, handle death.
         if (health <= 0f)
         {
             Die();
@@ -49,7 +55,14 @@ public class EnemyHealth : MonoBehaviour
     {
         isDead = true;
 
-        // Try to find PlayerStats safely and reward gold.
+        RewardGold();
+        TryDropItem();
+
+        Destroy(gameObject);
+    }
+
+    private void RewardGold()
+    {
         PlayerStats playerStats = FindPlayerStats();
         if (playerStats != null)
         {
@@ -60,13 +73,43 @@ public class EnemyHealth : MonoBehaviour
         {
             Debug.LogWarning($"{gameObject.name} died, but no PlayerStats was found to receive {goldReward} gold.");
         }
+    }
 
-        Destroy(gameObject);
+    private void TryDropItem()
+    {
+        if (itemPickupPrefab == null)
+        {
+            return;
+        }
+
+        if (possibleItemDrops == null || possibleItemDrops.Count == 0)
+        {
+            return;
+        }
+
+        if (Random.value > itemDropChance)
+        {
+            return;
+        }
+
+        ItemData dropItem = possibleItemDrops[Random.Range(0, possibleItemDrops.Count)];
+        if (dropItem == null)
+        {
+            return;
+        }
+
+        GameObject pickupObject = Instantiate(itemPickupPrefab, transform.position, Quaternion.identity);
+        ItemPickup pickup = pickupObject.GetComponent<ItemPickup>();
+        if (pickup != null)
+        {
+            pickup.SetItemData(dropItem);
+        }
+
+        Debug.Log($"{gameObject.name} dropped item: {dropItem.itemName}");
     }
 
     private PlayerStats FindPlayerStats()
     {
-        // Preferred: find Player by tag and get PlayerStats.
         GameObject playerObject = GameObject.FindGameObjectWithTag("Player");
         if (playerObject != null)
         {
@@ -77,7 +120,6 @@ public class EnemyHealth : MonoBehaviour
             }
         }
 
-        // Fallback: find any PlayerStats instance in scene.
         return FindFirstObjectByType<PlayerStats>();
     }
 }

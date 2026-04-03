@@ -9,6 +9,11 @@ public class ItemPickup : MonoBehaviour
     [Tooltip("Item data that defines bonuses applied on pickup.")]
     [SerializeField] private ItemData itemData;
 
+    public void SetItemData(ItemData data)
+    {
+        itemData = data;
+    }
+
     private void OnTriggerEnter(Collider other)
     {
         if (!other.CompareTag("Player"))
