@@ -11,7 +11,6 @@ public class ItemPickup : MonoBehaviour
 
     private void OnTriggerEnter(Collider other)
     {
-        // Only react to the player.
         if (!other.CompareTag("Player"))
         {
             return;
@@ -23,31 +22,16 @@ public class ItemPickup : MonoBehaviour
             return;
         }
 
-        // Resolve target scripts from player and apply bonuses.
-        FirstPersonMeleeAttack melee = other.GetComponent<FirstPersonMeleeAttack>();
-        if (melee != null)
+        // Centralized stat application via PlayerStats keeps structure modular.
+        PlayerStats playerStats = other.GetComponent<PlayerStats>();
+        if (playerStats != null)
         {
-            float newMelee = melee.GetDamage() + itemData.meleeDamageBonus;
-            melee.SetDamage(newMelee);
+            playerStats.ApplyItemBonuses(itemData);
+            Debug.Log($"Picked up item: {itemData.itemName}");
+            Destroy(gameObject);
+            return;
         }
 
-        SpellCaster spellCaster = other.GetComponent<SpellCaster>();
-        if (spellCaster != null)
-        {
-            float newSpell = spellCaster.GetSpellDamage() + itemData.spellDamageBonus;
-            spellCaster.SetSpellDamage(newSpell);
-        }
-
-        FirstPersonController controller = other.GetComponent<FirstPersonController>();
-        if (controller != null)
-        {
-            float newSpeed = controller.GetMoveSpeed() + itemData.movementSpeedBonus;
-            controller.SetMoveSpeed(newSpeed);
-        }
-
-        Debug.Log($"Picked up item: {itemData.itemName}. Applied bonuses (Melee +{itemData.meleeDamageBonus}, Spell +{itemData.spellDamageBonus}, Speed +{itemData.movementSpeedBonus}).");
-
-        // Remove pickup from scene after successful pickup.
-        Destroy(gameObject);
+        Debug.LogWarning("ItemPickup failed: PlayerStats not found on player.");
     }
 }
