@@ -7,10 +7,6 @@ using UnityEngine;
 /// </summary>
 public class BatEnemyAI : MonoBehaviour
 {
-    [Header("References")]
-    [Tooltip("Optional player transform. If empty, found using Player tag.")]
-    [SerializeField] private Transform player;
-
     [Header("Player Movement Triggers")]
     [Tooltip("Estimated player horizontal speed needed to trigger fast chase.")]
     [SerializeField] private float playerSpeedThreshold = 5f;
@@ -41,9 +37,11 @@ public class BatEnemyAI : MonoBehaviour
     [Tooltip("Cooldown between attacks.")]
     [SerializeField] private float attackCooldown = 1f;
 
+    // Runtime references (resolved automatically by Player tag).
+    private Transform player;
     private PlayerHealth playerHealth;
-    private Vector3 startPosition;
 
+    private Vector3 startPosition;
     private Vector3 lastPlayerPosition;
     private bool hasLastPlayerPosition;
     private float nextAttackTime;
@@ -51,12 +49,19 @@ public class BatEnemyAI : MonoBehaviour
     private void Awake()
     {
         startPosition = transform.position;
-        ResolvePlayerReferences();
+        FindPlayerReferences();
     }
 
     private void Update()
     {
-        if (!ResolvePlayerReferences())
+        // Re-resolve references so prefab-spawned bats work correctly.
+        if (player == null || playerHealth == null)
+        {
+            FindPlayerReferences();
+        }
+
+        // Safety: do nothing until player references are valid.
+        if (player == null || playerHealth == null)
         {
             RunSlowHover();
             return;
@@ -78,25 +83,28 @@ public class BatEnemyAI : MonoBehaviour
         }
     }
 
-    private bool ResolvePlayerReferences()
+    /// <summary>
+    /// Finds Player Transform and PlayerHealth using the Player tag.
+    /// </summary>
+    private void FindPlayerReferences()
     {
-        if (player == null)
+        GameObject playerObject = GameObject.FindWithTag("Player");
+        if (playerObject == null)
         {
-            GameObject playerObject = GameObject.FindWithTag("Player");
-            if (playerObject != null)
-            {
-                player = playerObject.transform;
-                playerHealth = playerObject.GetComponent<PlayerHealth>();
-                hasLastPlayerPosition = false;
-            }
+            player = null;
+            playerHealth = null;
+            return;
         }
 
-        if (player != null && playerHealth == null)
-        {
-            playerHealth = player.GetComponent<PlayerHealth>();
-        }
+        player = playerObject.transform;
+        playerHealth = playerObject.GetComponent<PlayerHealth>();
 
-        return player != null && playerHealth != null;
+        // Reset movement sampling when reference becomes valid.
+        if (!hasLastPlayerPosition)
+        {
+            lastPlayerPosition = player.position;
+            hasLastPlayerPosition = true;
+        }
     }
 
     private void EstimatePlayerMovement(out float horizontalSpeed, out float verticalVelocity)
