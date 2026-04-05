@@ -6,10 +6,18 @@ using UnityEngine;
 [CreateAssetMenu(fileName = "NewItemData", menuName = "Game/Item Data")]
 public class ItemData : ScriptableObject
 {
+    public enum ItemType
+    {
+        Damage,
+        Magic,
+        Speed
+    }
+
     [Header("Basic Info")]
     public string itemName;
     [TextArea]
     public string description;
+    public ItemType itemType;
 
     [Header("Stat Modifiers")]
     public float meleeDamageBonus;
