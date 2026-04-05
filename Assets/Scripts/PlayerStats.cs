@@ -14,9 +14,6 @@ public class PlayerStats : MonoBehaviour
     [SerializeField] private float totalSpellDamageBonus;
     [SerializeField] private float totalMovementSpeedBonus;
 
-    /// <summary>
-    /// Adds gold to the player's total and logs the updated value.
-    /// </summary>
     public void AddGold(int amount)
     {
         if (amount <= 0)
@@ -55,6 +52,12 @@ public class PlayerStats : MonoBehaviour
             float newSpell = spellCaster.GetSpellDamage() + itemData.spellDamageBonus;
             spellCaster.SetSpellDamage(newSpell);
             totalSpellDamageBonus += itemData.spellDamageBonus;
+
+            // Optional projectile attack behavior modifier.
+            if (itemData.projectileAttackModifier != null)
+            {
+                spellCaster.SetAttackModifier(itemData.projectileAttackModifier);
+            }
         }
 
         if (controller != null)

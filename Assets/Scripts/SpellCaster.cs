@@ -3,6 +3,7 @@ using UnityEngine;
 /// <summary>
 /// Simple spell casting system.
 /// Casts a projectile prefab from a spawn point on right mouse click.
+/// Supports optional projectile attack modifiers.
 /// </summary>
 public class SpellCaster : MonoBehaviour
 {
@@ -27,6 +28,7 @@ public class SpellCaster : MonoBehaviour
     [SerializeField] private float projectileDamage = 15f;
 
     private float nextCastTime;
+    private ProjectileAttackModifier activeModifier;
 
     private void Awake()
     {
@@ -49,12 +51,6 @@ public class SpellCaster : MonoBehaviour
             return;
         }
 
-        if (projectilePrefab == null)
-        {
-            Debug.LogWarning("Cast failed: projectilePrefab is not assigned.");
-            return;
-        }
-
         if (spawnPoint == null)
         {
             Debug.LogWarning("Cast failed: spawnPoint is not assigned.");
@@ -67,19 +63,71 @@ public class SpellCaster : MonoBehaviour
             return;
         }
 
+        GameObject prefabToUse = GetProjectilePrefab();
+        if (prefabToUse == null)
+        {
+            Debug.LogWarning("Cast failed: projectile prefab is not assigned.");
+            return;
+        }
+
         nextCastTime = Time.time + castCooldown;
 
-        Vector3 direction = playerCamera.forward;
+        Vector3 baseDirection = playerCamera.forward;
+        int shotCount = GetShotCount();
+        float spread = GetSpreadAngle();
+
+        for (int i = 0; i < shotCount; i++)
+        {
+            Vector3 shotDirection = GetSpreadDirection(baseDirection, i, shotCount, spread);
+            SpawnProjectile(prefabToUse, shotDirection);
+        }
+
+        Debug.Log($"Spell cast: fired {shotCount} projectile(s).");
+    }
+
+    private void SpawnProjectile(GameObject prefab, Vector3 direction)
+    {
         Quaternion spawnRotation = Quaternion.LookRotation(direction, Vector3.up);
-        GameObject projectileObject = Instantiate(projectilePrefab, spawnPoint.position, spawnRotation);
+        GameObject projectileObject = Instantiate(prefab, spawnPoint.position, spawnRotation);
 
         Projectile projectile = projectileObject.GetComponent<Projectile>();
         if (projectile != null)
         {
             projectile.Fire(direction, projectileSpeed, projectileDamage, Projectile.DamageTarget.Enemy);
         }
+    }
 
-        Debug.Log($"Spell cast: spawned {projectileObject.name} from {spawnPoint.position}.");
+    private Vector3 GetSpreadDirection(Vector3 baseDirection, int shotIndex, int shotCount, float spreadAngle)
+    {
+        if (shotCount <= 1 || spreadAngle <= 0f)
+        {
+            return baseDirection;
+        }
+
+        float t = (float)shotIndex / (shotCount - 1); // 0..1
+        float angle = Mathf.Lerp(-spreadAngle * 0.5f, spreadAngle * 0.5f, t);
+        return Quaternion.AngleAxis(angle, Vector3.up) * baseDirection;
+    }
+
+    private GameObject GetProjectilePrefab()
+    {
+        if (activeModifier != null && activeModifier.overrideProjectilePrefab != null)
+        {
+            return activeModifier.overrideProjectilePrefab;
+        }
+
+        return projectilePrefab;
+    }
+
+    private int GetShotCount()
+    {
+        int extra = activeModifier != null ? activeModifier.additionalProjectiles : 0;
+        return Mathf.Max(1, 1 + extra);
+    }
+
+    private float GetSpreadAngle()
+    {
+        return activeModifier != null ? activeModifier.spreadAngle : 0f;
     }
 
     private bool AssignCameraIfMissing()
@@ -107,5 +155,13 @@ public class SpellCaster : MonoBehaviour
     public float GetSpellDamage()
     {
         return projectileDamage;
+    }
+
+    /// <summary>
+    /// Sets the active projectile attack modifier (or null to clear).
+    /// </summary>
+    public void SetAttackModifier(ProjectileAttackModifier modifier)
+    {
+        activeModifier = modifier;
     }
 }

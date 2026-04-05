@@ -23,4 +23,7 @@ public class ItemData : ScriptableObject
     public float meleeDamageBonus;
     public float spellDamageBonus;
     public float movementSpeedBonus;
+
+    [Header("Attack Modifier (Optional)")]
+    public ProjectileAttackModifier projectileAttackModifier;
 }
