@@ -12,24 +12,16 @@ public class ItemPickup : MonoBehaviour
     [Tooltip("Renderer used to show item type color. If empty, auto-finds one.")]
     [SerializeField] private Renderer targetRenderer;
 
-    private void Awake()
+    private void Start()
     {
-        EnsureRendererReference();
-        ApplyColorFromItemType(useRuntimeMaterial: true);
-    }
-
-    private void OnValidate()
-    {
-        // Editor-safe path:
-        // - avoid touching prefab asset materials
-        // - use sharedMaterial (not material)
-        if (IsPrefabAsset())
+        // Apply color only during play mode.
+        if (!Application.isPlaying)
         {
             return;
         }
 
         EnsureRendererReference();
-        ApplyColorFromItemType(useRuntimeMaterial: false);
+        ApplyColorFromItemType();
     }
 
     public void SetItemData(ItemData data)
@@ -41,8 +33,13 @@ public class ItemPickup : MonoBehaviour
         }
 
         itemData = data;
-        EnsureRendererReference();
-        ApplyColorFromItemType(useRuntimeMaterial: Application.isPlaying);
+
+        // Runtime update only (safe for prefabs in editor).
+        if (Application.isPlaying)
+        {
+            EnsureRendererReference();
+            ApplyColorFromItemType();
+        }
     }
 
     private void OnTriggerEnter(Collider other)
@@ -78,15 +75,9 @@ public class ItemPickup : MonoBehaviour
         }
     }
 
-    private void ApplyColorFromItemType(bool useRuntimeMaterial)
+    private void ApplyColorFromItemType()
     {
-        if (itemData == null)
-        {
-            return;
-        }
-
-        EnsureRendererReference();
-        if (targetRenderer == null)
+        if (itemData == null || targetRenderer == null)
         {
             return;
         }
@@ -108,30 +99,10 @@ public class ItemPickup : MonoBehaviour
                 break;
         }
 
-        if (useRuntimeMaterial)
+        // Runtime-only instance material update.
+        if (targetRenderer.material != null)
         {
-            // Runtime-only instance modification.
-            if (targetRenderer.material != null)
-            {
-                targetRenderer.material.color = color;
-            }
+            targetRenderer.material.color = color;
         }
-        else
-        {
-            // Editor-safe shared material update.
-            if (targetRenderer.sharedMaterial != null)
-            {
-                targetRenderer.sharedMaterial.color = color;
-            }
-        }
-    }
-
-    private bool IsPrefabAsset()
-    {
-#if UNITY_EDITOR
-        return UnityEditor.PrefabUtility.IsPartOfPrefabAsset(gameObject);
-#else
-        return false;
-#endif
     }
 }
