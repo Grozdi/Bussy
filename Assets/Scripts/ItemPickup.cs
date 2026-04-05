@@ -2,7 +2,7 @@ using UnityEngine;
 
 /// <summary>
 /// Item pickup that applies ItemData stat bonuses to the player.
-/// Uses trigger collision and destroys itself after pickup.
+/// Separates editor visual refresh from runtime pickup logic.
 /// </summary>
 public class ItemPickup : MonoBehaviour
 {
@@ -12,17 +12,35 @@ public class ItemPickup : MonoBehaviour
     [Tooltip("Renderer used to show item type color. If empty, auto-finds one.")]
     [SerializeField] private Renderer targetRenderer;
 
+    private void Awake()
+    {
+        EnsureRendererReference();
+    }
+
     private void Start()
     {
-        // Apply color only during play mode.
-        if (!Application.isPlaying)
+        // Runtime visual update only.
+        ApplyVisualRuntime();
+    }
+
+#if UNITY_EDITOR
+    private void OnValidate()
+    {
+        // Editor visual update only (safe path).
+        if (Application.isPlaying)
+        {
+            return;
+        }
+
+        if (UnityEditor.PrefabUtility.IsPartOfPrefabAsset(gameObject))
         {
             return;
         }
 
         EnsureRendererReference();
-        ApplyColorFromItemType();
+        ApplyVisualEditor();
     }
+#endif
 
     public void SetItemData(ItemData data)
     {
@@ -33,18 +51,27 @@ public class ItemPickup : MonoBehaviour
         }
 
         itemData = data;
+        EnsureRendererReference();
 
-        // Runtime update only (safe for prefabs in editor).
-        if (Application.isPlaying)
+        // Keep visuals updated in both editor and runtime contexts.
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
         {
-            EnsureRendererReference();
-            ApplyColorFromItemType();
+            ApplyVisualEditor();
+            return;
         }
+#endif
+        ApplyVisualRuntime();
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (other == null || !other.CompareTag("Player"))
+        if (other == null)
+        {
+            return;
+        }
+
+        if (!other.CompareTag("Player"))
         {
             return;
         }
@@ -75,34 +102,69 @@ public class ItemPickup : MonoBehaviour
         }
     }
 
-    private void ApplyColorFromItemType()
+    private bool TryGetItemColor(out Color color)
     {
-        if (itemData == null || targetRenderer == null)
+        color = Color.white;
+
+        if (itemData == null)
         {
-            return;
+            return false;
         }
 
-        Color color;
         switch (itemData.itemType)
         {
             case ItemData.ItemType.Damage:
                 color = Color.red;
-                break;
+                return true;
             case ItemData.ItemType.Magic:
                 color = Color.blue;
-                break;
+                return true;
             case ItemData.ItemType.Speed:
                 color = Color.green;
-                break;
+                return true;
             default:
-                color = Color.white;
-                break;
+                return false;
+        }
+    }
+
+    private void ApplyVisualRuntime()
+    {
+        if (!Application.isPlaying)
+        {
+            return;
         }
 
-        // Runtime-only instance material update.
+        if (targetRenderer == null)
+        {
+            return;
+        }
+
+        if (!TryGetItemColor(out Color color))
+        {
+            return;
+        }
+
         if (targetRenderer.material != null)
         {
             targetRenderer.material.color = color;
+        }
+    }
+
+    private void ApplyVisualEditor()
+    {
+        if (targetRenderer == null)
+        {
+            return;
+        }
+
+        if (!TryGetItemColor(out Color color))
+        {
+            return;
+        }
+
+        if (targetRenderer.sharedMaterial != null)
+        {
+            targetRenderer.sharedMaterial.color = color;
         }
     }
 }
