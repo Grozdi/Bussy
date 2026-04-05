@@ -26,13 +26,20 @@ public class ItemPickup : MonoBehaviour
 
     public void SetItemData(ItemData data)
     {
+        if (data == null)
+        {
+            Debug.LogWarning("ItemPickup SetItemData failed: data is null.");
+            return;
+        }
+
         itemData = data;
+        EnsureRendererReference();
         ApplyColorFromItemType();
     }
 
     private void OnTriggerEnter(Collider other)
     {
-        if (!other.CompareTag("Player"))
+        if (other == null || !other.CompareTag("Player"))
         {
             return;
         }
@@ -43,17 +50,16 @@ public class ItemPickup : MonoBehaviour
             return;
         }
 
-        // Centralized stat application via PlayerStats keeps structure modular.
         PlayerStats playerStats = other.GetComponent<PlayerStats>();
-        if (playerStats != null)
+        if (playerStats == null)
         {
-            playerStats.ApplyItemBonuses(itemData);
-            Debug.Log($"Picked up item: {itemData.itemName}");
-            Destroy(gameObject);
+            Debug.LogWarning("ItemPickup failed: PlayerStats not found on player.");
             return;
         }
 
-        Debug.LogWarning("ItemPickup failed: PlayerStats not found on player.");
+        playerStats.ApplyItemBonuses(itemData);
+        Debug.Log($"Picked up item: {itemData.itemName}");
+        Destroy(gameObject);
     }
 
     private void EnsureRendererReference()
@@ -66,13 +72,19 @@ public class ItemPickup : MonoBehaviour
 
     private void ApplyColorFromItemType()
     {
-        if (itemData == null || targetRenderer == null)
+        if (itemData == null)
         {
             return;
         }
 
-        Color color = Color.white;
+        EnsureRendererReference();
+        if (targetRenderer == null)
+        {
+            // Renderer is optional; skip color update safely.
+            return;
+        }
 
+        Color color;
         switch (itemData.itemType)
         {
             case ItemData.ItemType.Damage:
@@ -86,9 +98,12 @@ public class ItemPickup : MonoBehaviour
             case ItemData.ItemType.Speed:
                 color = Color.green;
                 break;
+
+            default:
+                color = Color.white;
+                break;
         }
 
-        // Use material instance color for clear visual feedback.
         targetRenderer.material.color = color;
     }
 }
