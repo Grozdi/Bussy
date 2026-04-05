@@ -15,13 +15,21 @@ public class ItemPickup : MonoBehaviour
     private void Awake()
     {
         EnsureRendererReference();
-        ApplyColorFromItemType();
+        ApplyColorFromItemType(useRuntimeMaterial: true);
     }
 
     private void OnValidate()
     {
+        // Editor-safe path:
+        // - avoid touching prefab asset materials
+        // - use sharedMaterial (not material)
+        if (IsPrefabAsset())
+        {
+            return;
+        }
+
         EnsureRendererReference();
-        ApplyColorFromItemType();
+        ApplyColorFromItemType(useRuntimeMaterial: false);
     }
 
     public void SetItemData(ItemData data)
@@ -34,7 +42,7 @@ public class ItemPickup : MonoBehaviour
 
         itemData = data;
         EnsureRendererReference();
-        ApplyColorFromItemType();
+        ApplyColorFromItemType(useRuntimeMaterial: Application.isPlaying);
     }
 
     private void OnTriggerEnter(Collider other)
@@ -70,7 +78,7 @@ public class ItemPickup : MonoBehaviour
         }
     }
 
-    private void ApplyColorFromItemType()
+    private void ApplyColorFromItemType(bool useRuntimeMaterial)
     {
         if (itemData == null)
         {
@@ -80,7 +88,6 @@ public class ItemPickup : MonoBehaviour
         EnsureRendererReference();
         if (targetRenderer == null)
         {
-            // Renderer is optional; skip color update safely.
             return;
         }
 
@@ -90,20 +97,41 @@ public class ItemPickup : MonoBehaviour
             case ItemData.ItemType.Damage:
                 color = Color.red;
                 break;
-
             case ItemData.ItemType.Magic:
                 color = Color.blue;
                 break;
-
             case ItemData.ItemType.Speed:
                 color = Color.green;
                 break;
-
             default:
                 color = Color.white;
                 break;
         }
 
-        targetRenderer.material.color = color;
+        if (useRuntimeMaterial)
+        {
+            // Runtime-only instance modification.
+            if (targetRenderer.material != null)
+            {
+                targetRenderer.material.color = color;
+            }
+        }
+        else
+        {
+            // Editor-safe shared material update.
+            if (targetRenderer.sharedMaterial != null)
+            {
+                targetRenderer.sharedMaterial.color = color;
+            }
+        }
+    }
+
+    private bool IsPrefabAsset()
+    {
+#if UNITY_EDITOR
+        return UnityEditor.PrefabUtility.IsPartOfPrefabAsset(gameObject);
+#else
+        return false;
+#endif
     }
 }
