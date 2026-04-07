@@ -21,8 +21,6 @@ public class SpellCaster : MonoBehaviour
     [Header("Projectile Pattern")]
     [Min(1)]
     [SerializeField] private int projectileCount = 1;
-
-    [Tooltip("Total spread angle in degrees for multi-shot.")]
     [SerializeField] private float spreadAngle = 12f;
 
     private float nextCastTime;
@@ -72,14 +70,32 @@ public class SpellCaster : MonoBehaviour
 
         nextCastTime = Time.time + castCooldown;
 
+        // Ensure at least one projectile always spawns.
         int shotCount = Mathf.Max(1, projectileCount);
-        float totalSpread = shotCount > 1 ? Mathf.Max(0f, spreadAngle) : 0f;
+
         Vector3 baseDirection = playerCamera.forward;
+        if (baseDirection.sqrMagnitude <= 0.0001f)
+        {
+            baseDirection = transform.forward;
+        }
+
+        float clampedSpread = Mathf.Max(0f, spreadAngle);
+        float angleStep = shotCount > 1 ? clampedSpread / (shotCount - 1) : 0f;
+        float startAngle = shotCount > 1 ? -clampedSpread * 0.5f : 0f;
 
         for (int i = 0; i < shotCount; i++)
         {
-            Vector3 direction = GetSafeShotDirection(baseDirection, i, shotCount, totalSpread);
-            SpawnProjectile(prefabToUse, direction);
+            float angle = startAngle + (i * angleStep);
+
+            Quaternion rotationOffset = Quaternion.Euler(0f, angle, 0f);
+            Vector3 direction = rotationOffset * baseDirection;
+
+            if (float.IsNaN(direction.x) || float.IsNaN(direction.y) || float.IsNaN(direction.z) || direction.sqrMagnitude <= 0.0001f)
+            {
+                direction = baseDirection;
+            }
+
+            SpawnProjectile(prefabToUse, direction.normalized);
         }
 
         Debug.Log($"Spell cast: fired {shotCount} projectile(s).");
@@ -97,42 +113,6 @@ public class SpellCaster : MonoBehaviour
         }
     }
 
-
-    private Vector3 GetSafeShotDirection(Vector3 baseDirection, int shotIndex, int shotCount, float totalSpread)
-    {
-        if (baseDirection.sqrMagnitude <= 0.0001f)
-        {
-            baseDirection = transform.forward;
-        }
-
-        float angleOffset = GetShotAngleOffset(shotIndex, shotCount, totalSpread);
-        Quaternion rotationOffset = Quaternion.Euler(0f, angleOffset, 0f);
-
-        // Start with player forward, then apply Y-axis rotation offset.
-        Vector3 direction = rotationOffset * baseDirection;
-
-        // Robust fallback to guarantee a valid spawn direction.
-        if (float.IsNaN(direction.x) || float.IsNaN(direction.y) || float.IsNaN(direction.z) || direction.sqrMagnitude <= 0.0001f)
-        {
-            return baseDirection.normalized;
-        }
-
-        return direction.normalized;
-    }
-
-    private float GetShotAngleOffset(int shotIndex, int shotCount, float totalSpread)
-    {
-        if (shotCount <= 1 || totalSpread <= 0f)
-        {
-            return 0f;
-        }
-
-        // Centered spread example for 3 projectiles: -angle, 0, +angle.
-        float step = totalSpread / (shotCount - 1);
-        float start = -totalSpread * 0.5f;
-        return start + step * shotIndex;
-    }
-
     private GameObject GetProjectilePrefabForCurrentCast()
     {
         if (alternateProjectilePrefab != null)
@@ -147,7 +127,6 @@ public class SpellCaster : MonoBehaviour
 
         return projectilePrefab;
     }
-
 
     private void EnsureSpawnPoint()
     {
@@ -197,7 +176,6 @@ public class SpellCaster : MonoBehaviour
     {
         alternateProjectilePrefab = prefab;
     }
-
 
     public void SetProjectilePattern(int count, float spread)
     {
