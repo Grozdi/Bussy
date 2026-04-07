@@ -26,4 +26,8 @@ public class ItemData : ScriptableObject
 
     [Header("Attack Modifier (Optional)")]
     public ProjectileAttackModifier projectileAttackModifier;
+
+    [Header("Special Flags")]
+    [Tooltip("If true, this item applies a shotgun projectile pattern.")]
+    public bool isShotgunItem;
 }

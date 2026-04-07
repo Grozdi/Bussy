@@ -89,18 +89,22 @@ public class ItemPickup : MonoBehaviour
             return;
         }
 
-        // Directly modify attack behavior when item has projectile modifier data.
-        if (itemData.projectileAttackModifier != null)
-        {
-            SpellCaster spellCaster = other.GetComponent<SpellCaster>();
-            if (spellCaster != null)
-            {
-                int shotCount = 1 + itemData.projectileAttackModifier.additionalProjectiles;
-                bool enableMultiShot = itemData.projectileAttackModifier.additionalProjectiles > 0;
+        SpellCaster spellCaster = other.GetComponent<SpellCaster>();
 
-                spellCaster.SetMultiShot(enableMultiShot, shotCount);
-                spellCaster.SetAlternateProjectilePrefab(itemData.projectileAttackModifier.overrideProjectilePrefab);
-            }
+        // Directly modify attack behavior when item has projectile modifier data.
+        if (itemData.projectileAttackModifier != null && spellCaster != null)
+        {
+            int shotCount = 1 + itemData.projectileAttackModifier.additionalProjectiles;
+            bool enableMultiShot = itemData.projectileAttackModifier.additionalProjectiles > 0;
+
+            spellCaster.SetMultiShot(enableMultiShot, shotCount);
+            spellCaster.SetAlternateProjectilePrefab(itemData.projectileAttackModifier.overrideProjectilePrefab);
+        }
+
+        // Shotgun-type item: force 3-projectile spread pattern.
+        if (itemData.isShotgunItem && spellCaster != null)
+        {
+            spellCaster.SetProjectilePattern(3, 15f);
         }
 
         playerStats.ApplyItemBonuses(itemData);

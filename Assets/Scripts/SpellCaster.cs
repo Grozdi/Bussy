@@ -161,6 +161,13 @@ public class SpellCaster : MonoBehaviour
         alternateProjectilePrefab = prefab;
     }
 
+
+    public void SetProjectilePattern(int count, float spread)
+    {
+        projectileCount = Mathf.Max(1, count);
+        spreadAngle = Mathf.Max(0f, spread);
+    }
+
     public void SetAttackModifier(ProjectileAttackModifier modifier)
     {
         activeModifier = modifier;
