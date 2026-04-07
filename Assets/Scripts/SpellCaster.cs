@@ -77,7 +77,8 @@ public class SpellCaster : MonoBehaviour
         for (int i = 0; i < shotCount; i++)
         {
             float angleOffset = GetShotAngleOffset(i, shotCount, totalSpread);
-            Vector3 direction = Quaternion.AngleAxis(angleOffset, Vector3.up) * baseDirection;
+            Quaternion rotationOffset = Quaternion.Euler(0f, angleOffset, 0f);
+            Vector3 direction = rotationOffset * baseDirection;
             SpawnProjectile(prefabToUse, direction);
         }
 
