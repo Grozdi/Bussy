@@ -76,7 +76,8 @@ public class SpellCaster : MonoBehaviour
 
         for (int i = 0; i < shotCount; i++)
         {
-            Vector3 direction = GetSpreadDirection(baseDirection, i, shotCount, totalSpread);
+            float angleOffset = GetShotAngleOffset(i, shotCount, totalSpread);
+            Vector3 direction = Quaternion.AngleAxis(angleOffset, Vector3.up) * baseDirection;
             SpawnProjectile(prefabToUse, direction);
         }
 
@@ -95,17 +96,17 @@ public class SpellCaster : MonoBehaviour
         }
     }
 
-    private Vector3 GetSpreadDirection(Vector3 baseDirection, int shotIndex, int shotCount, float totalSpread)
+    private float GetShotAngleOffset(int shotIndex, int shotCount, float totalSpread)
     {
         if (shotCount <= 1 || totalSpread <= 0f)
         {
-            return baseDirection;
+            return 0f;
         }
 
-        // Evenly spread from -halfSpread to +halfSpread (centered on forward).
-        float t = (float)shotIndex / (shotCount - 1);
-        float angle = Mathf.Lerp(-totalSpread * 0.5f, totalSpread * 0.5f, t);
-        return Quaternion.AngleAxis(angle, Vector3.up) * baseDirection;
+        // Centered spread example for 3 projectiles: -angle, 0, +angle.
+        float step = totalSpread / (shotCount - 1);
+        float start = -totalSpread * 0.5f;
+        return start + step * shotIndex;
     }
 
     private GameObject GetProjectilePrefabForCurrentCast()
