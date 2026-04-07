@@ -89,6 +89,20 @@ public class ItemPickup : MonoBehaviour
             return;
         }
 
+        // Directly modify attack behavior when item has projectile modifier data.
+        if (itemData.projectileAttackModifier != null)
+        {
+            SpellCaster spellCaster = other.GetComponent<SpellCaster>();
+            if (spellCaster != null)
+            {
+                int shotCount = 1 + itemData.projectileAttackModifier.additionalProjectiles;
+                bool enableMultiShot = itemData.projectileAttackModifier.additionalProjectiles > 0;
+
+                spellCaster.SetMultiShot(enableMultiShot, shotCount);
+                spellCaster.SetAlternateProjectilePrefab(itemData.projectileAttackModifier.overrideProjectilePrefab);
+            }
+        }
+
         playerStats.ApplyItemBonuses(itemData);
         Debug.Log($"Picked up item: {itemData.itemName}");
         Destroy(gameObject);

@@ -186,6 +186,17 @@ public class SpellCaster : MonoBehaviour
         return projectileDamage;
     }
 
+
+    public void SetMultiShot(bool enabled, int shotCount = 3)
+    {
+        multiShotEnabled = enabled;
+        multiShotCount = Mathf.Max(2, shotCount);
+    }
+
+    public void SetAlternateProjectilePrefab(GameObject prefab)
+    {
+        alternateProjectilePrefab = prefab;
+    }
     /// <summary>
     /// Sets the active projectile attack modifier (or null to clear).
     /// </summary>
