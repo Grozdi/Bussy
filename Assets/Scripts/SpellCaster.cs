@@ -78,9 +78,7 @@ public class SpellCaster : MonoBehaviour
 
         for (int i = 0; i < shotCount; i++)
         {
-            float angleOffset = GetShotAngleOffset(i, shotCount, totalSpread);
-            Quaternion rotationOffset = Quaternion.Euler(0f, angleOffset, 0f);
-            Vector3 direction = rotationOffset * baseDirection;
+            Vector3 direction = GetSafeShotDirection(baseDirection, i, shotCount, totalSpread);
             SpawnProjectile(prefabToUse, direction);
         }
 
@@ -97,6 +95,29 @@ public class SpellCaster : MonoBehaviour
         {
             projectile.Fire(direction, projectileSpeed, projectileDamage, Projectile.DamageTarget.Enemy);
         }
+    }
+
+
+    private Vector3 GetSafeShotDirection(Vector3 baseDirection, int shotIndex, int shotCount, float totalSpread)
+    {
+        if (baseDirection.sqrMagnitude <= 0.0001f)
+        {
+            baseDirection = transform.forward;
+        }
+
+        float angleOffset = GetShotAngleOffset(shotIndex, shotCount, totalSpread);
+        Quaternion rotationOffset = Quaternion.Euler(0f, angleOffset, 0f);
+
+        // Start with player forward, then apply Y-axis rotation offset.
+        Vector3 direction = rotationOffset * baseDirection;
+
+        // Robust fallback to guarantee a valid spawn direction.
+        if (float.IsNaN(direction.x) || float.IsNaN(direction.y) || float.IsNaN(direction.z) || direction.sqrMagnitude <= 0.0001f)
+        {
+            return baseDirection.normalized;
+        }
+
+        return direction.normalized;
     }
 
     private float GetShotAngleOffset(int shotIndex, int shotCount, float totalSpread)
