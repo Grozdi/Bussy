@@ -11,6 +11,9 @@ public class SpellCaster : MonoBehaviour
     [Tooltip("Projectile prefab to spawn when casting.")]
     [SerializeField] private GameObject projectilePrefab;
 
+    [Tooltip("Alternate projectile prefab used for multi-shot if assigned.")]
+    [SerializeField] private GameObject alternateProjectilePrefab;
+
     [Tooltip("Spawn point used for projectile position.")]
     [SerializeField] private Transform spawnPoint;
 
@@ -26,6 +29,14 @@ public class SpellCaster : MonoBehaviour
 
     [Tooltip("Damage assigned to the spawned projectile.")]
     [SerializeField] private float projectileDamage = 15f;
+
+    [Header("Multi-Shot")]
+    [Tooltip("If true, fires multiple projectiles per cast.")]
+    [SerializeField] private bool multiShotEnabled;
+
+    [Tooltip("Projectile count used when multi-shot is enabled.")]
+    [Min(2)]
+    [SerializeField] private int multiShotCount = 3;
 
     private float nextCastTime;
     private ProjectileAttackModifier activeModifier;
@@ -63,7 +74,7 @@ public class SpellCaster : MonoBehaviour
             return;
         }
 
-        GameObject prefabToUse = GetProjectilePrefab();
+        GameObject prefabToUse = GetProjectilePrefabForCurrentCast();
         if (prefabToUse == null)
         {
             Debug.LogWarning("Cast failed: projectile prefab is not assigned.");
@@ -104,29 +115,47 @@ public class SpellCaster : MonoBehaviour
             return baseDirection;
         }
 
-        float t = (float)shotIndex / (shotCount - 1); // 0..1
+        float t = (float)shotIndex / (shotCount - 1);
         float angle = Mathf.Lerp(-spreadAngle * 0.5f, spreadAngle * 0.5f, t);
         return Quaternion.AngleAxis(angle, Vector3.up) * baseDirection;
     }
 
-    private GameObject GetProjectilePrefab()
+    private GameObject GetProjectilePrefabForCurrentCast()
     {
+        // Multi-shot override first (explicit gameplay toggle).
+        if (multiShotEnabled && alternateProjectilePrefab != null)
+        {
+            return alternateProjectilePrefab;
+        }
+
+        // Fallback to active modifier override.
         if (activeModifier != null && activeModifier.overrideProjectilePrefab != null)
         {
             return activeModifier.overrideProjectilePrefab;
         }
 
+        // Default prefab.
         return projectilePrefab;
     }
 
     private int GetShotCount()
     {
+        if (multiShotEnabled)
+        {
+            return Mathf.Max(2, multiShotCount);
+        }
+
         int extra = activeModifier != null ? activeModifier.additionalProjectiles : 0;
         return Mathf.Max(1, 1 + extra);
     }
 
     private float GetSpreadAngle()
     {
+        if (multiShotEnabled)
+        {
+            return 12f;
+        }
+
         return activeModifier != null ? activeModifier.spreadAngle : 0f;
     }
 
