@@ -2,41 +2,28 @@ using UnityEngine;
 
 /// <summary>
 /// Simple spell casting system.
-/// Casts a projectile prefab from a spawn point on right mouse click.
-/// Supports optional projectile attack modifiers.
+/// Casts projectile prefabs from a spawn point on right mouse click.
+/// Supports single-shot and spread multi-shot.
 /// </summary>
 public class SpellCaster : MonoBehaviour
 {
     [Header("References")]
-    [Tooltip("Projectile prefab to spawn when casting.")]
     [SerializeField] private GameObject projectilePrefab;
-
-    [Tooltip("Alternate projectile prefab used for multi-shot if assigned.")]
     [SerializeField] private GameObject alternateProjectilePrefab;
-
-    [Tooltip("Spawn point used for projectile position.")]
     [SerializeField] private Transform spawnPoint;
-
-    [Tooltip("Player camera used to define projectile forward direction.")]
     [SerializeField] private Transform playerCamera;
 
     [Header("Cast Settings")]
-    [Tooltip("Cooldown time in seconds between casts.")]
     [SerializeField] private float castCooldown = 0.75f;
-
-    [Tooltip("Speed applied to the spawned projectile.")]
     [SerializeField] private float projectileSpeed = 20f;
-
-    [Tooltip("Damage assigned to the spawned projectile.")]
     [SerializeField] private float projectileDamage = 15f;
 
-    [Header("Multi-Shot")]
-    [Tooltip("If true, fires multiple projectiles per cast.")]
-    [SerializeField] private bool multiShotEnabled;
+    [Header("Projectile Pattern")]
+    [Min(1)]
+    [SerializeField] private int projectileCount = 1;
 
-    [Tooltip("Projectile count used when multi-shot is enabled.")]
-    [Min(2)]
-    [SerializeField] private int multiShotCount = 3;
+    [Tooltip("Total spread angle in degrees for multi-shot.")]
+    [SerializeField] private float spreadAngle = 12f;
 
     private float nextCastTime;
     private ProjectileAttackModifier activeModifier;
@@ -83,14 +70,14 @@ public class SpellCaster : MonoBehaviour
 
         nextCastTime = Time.time + castCooldown;
 
+        int shotCount = Mathf.Max(1, projectileCount);
+        float totalSpread = shotCount > 1 ? Mathf.Max(0f, spreadAngle) : 0f;
         Vector3 baseDirection = playerCamera.forward;
-        int shotCount = GetShotCount();
-        float spread = GetSpreadAngle();
 
         for (int i = 0; i < shotCount; i++)
         {
-            Vector3 shotDirection = GetSpreadDirection(baseDirection, i, shotCount, spread);
-            SpawnProjectile(prefabToUse, shotDirection);
+            Vector3 direction = GetSpreadDirection(baseDirection, i, shotCount, totalSpread);
+            SpawnProjectile(prefabToUse, direction);
         }
 
         Debug.Log($"Spell cast: fired {shotCount} projectile(s).");
@@ -108,55 +95,32 @@ public class SpellCaster : MonoBehaviour
         }
     }
 
-    private Vector3 GetSpreadDirection(Vector3 baseDirection, int shotIndex, int shotCount, float spreadAngle)
+    private Vector3 GetSpreadDirection(Vector3 baseDirection, int shotIndex, int shotCount, float totalSpread)
     {
-        if (shotCount <= 1 || spreadAngle <= 0f)
+        if (shotCount <= 1 || totalSpread <= 0f)
         {
             return baseDirection;
         }
 
+        // Evenly spread from -halfSpread to +halfSpread (centered on forward).
         float t = (float)shotIndex / (shotCount - 1);
-        float angle = Mathf.Lerp(-spreadAngle * 0.5f, spreadAngle * 0.5f, t);
+        float angle = Mathf.Lerp(-totalSpread * 0.5f, totalSpread * 0.5f, t);
         return Quaternion.AngleAxis(angle, Vector3.up) * baseDirection;
     }
 
     private GameObject GetProjectilePrefabForCurrentCast()
     {
-        // Multi-shot override first (explicit gameplay toggle).
-        if (multiShotEnabled && alternateProjectilePrefab != null)
+        if (alternateProjectilePrefab != null)
         {
             return alternateProjectilePrefab;
         }
 
-        // Fallback to active modifier override.
         if (activeModifier != null && activeModifier.overrideProjectilePrefab != null)
         {
             return activeModifier.overrideProjectilePrefab;
         }
 
-        // Default prefab.
         return projectilePrefab;
-    }
-
-    private int GetShotCount()
-    {
-        if (multiShotEnabled)
-        {
-            return Mathf.Max(2, multiShotCount);
-        }
-
-        int extra = activeModifier != null ? activeModifier.additionalProjectiles : 0;
-        return Mathf.Max(1, 1 + extra);
-    }
-
-    private float GetSpreadAngle()
-    {
-        if (multiShotEnabled)
-        {
-            return 12f;
-        }
-
-        return activeModifier != null ? activeModifier.spreadAngle : 0f;
     }
 
     private bool AssignCameraIfMissing()
@@ -186,22 +150,25 @@ public class SpellCaster : MonoBehaviour
         return projectileDamage;
     }
 
-
+    // Compatibility helper for existing systems.
     public void SetMultiShot(bool enabled, int shotCount = 3)
     {
-        multiShotEnabled = enabled;
-        multiShotCount = Mathf.Max(2, shotCount);
+        projectileCount = enabled ? Mathf.Max(2, shotCount) : 1;
     }
 
     public void SetAlternateProjectilePrefab(GameObject prefab)
     {
         alternateProjectilePrefab = prefab;
     }
-    /// <summary>
-    /// Sets the active projectile attack modifier (or null to clear).
-    /// </summary>
+
     public void SetAttackModifier(ProjectileAttackModifier modifier)
     {
         activeModifier = modifier;
+
+        if (activeModifier != null)
+        {
+            projectileCount = Mathf.Max(1, 1 + activeModifier.additionalProjectiles);
+            spreadAngle = activeModifier.spreadAngle;
+        }
     }
 }
