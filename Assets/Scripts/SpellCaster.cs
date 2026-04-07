@@ -30,6 +30,7 @@ public class SpellCaster : MonoBehaviour
 
     private void Awake()
     {
+        EnsureSpawnPoint();
         AssignCameraIfMissing();
     }
 
@@ -49,9 +50,10 @@ public class SpellCaster : MonoBehaviour
             return;
         }
 
+        EnsureSpawnPoint();
         if (spawnPoint == null)
         {
-            Debug.LogWarning("Cast failed: spawnPoint is not assigned.");
+            Debug.LogWarning("Cast failed: no valid spawnPoint or player transform found.");
             return;
         }
 
@@ -123,6 +125,18 @@ public class SpellCaster : MonoBehaviour
         }
 
         return projectilePrefab;
+    }
+
+
+    private void EnsureSpawnPoint()
+    {
+        if (spawnPoint != null)
+        {
+            return;
+        }
+
+        // Safe fallback: use player's transform when no spawn point is assigned.
+        spawnPoint = transform;
     }
 
     private bool AssignCameraIfMissing()
