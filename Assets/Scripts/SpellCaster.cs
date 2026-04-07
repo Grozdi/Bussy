@@ -95,15 +95,16 @@ public class SpellCaster : MonoBehaviour
                 direction = baseDirection;
             }
 
-            SpawnProjectile(prefabToUse, direction.normalized);
+            direction = direction.normalized;
+            Quaternion spawnRotation = Quaternion.LookRotation(direction, Vector3.up);
+            SpawnProjectile(prefabToUse, direction, spawnRotation);
         }
 
         Debug.Log($"Spell cast: fired {shotCount} projectile(s).");
     }
 
-    private void SpawnProjectile(GameObject prefab, Vector3 direction)
+    private void SpawnProjectile(GameObject prefab, Vector3 direction, Quaternion spawnRotation)
     {
-        Quaternion spawnRotation = Quaternion.LookRotation(direction, Vector3.up);
         GameObject projectileObject = Instantiate(prefab, spawnPoint.position, spawnRotation);
 
         Projectile projectile = projectileObject.GetComponent<Projectile>();
